@@ -85,17 +85,17 @@ finalize pool@(ReleaseMap ref) = do
 releaseAll :: ReleaseMap -> Aff Unit
 releaseAll (ReleaseMap ref) = tailRecM go []
   where
-  go errors = do
-    mostRecent <- extractMostRecent
-    case mostRecent of
-      Nothing -> do
-        liftEffect $ Ref.write Nothing ref
-        traverse_ throwError errors
-        pure $ Done unit
-      Just runRelease -> do
-        Loop
-          <$> either (Array.snoc errors) (const errors)
-          <$> try runRelease
+  go errors =
+    extractMostRecent
+      >>= case _ of
+          Nothing -> do
+            liftEffect $ Ref.write Nothing ref
+            traverse_ throwError errors
+            pure $ Done unit
+          Just runRelease ->
+            Loop
+              <$> either (Array.snoc errors) (const errors)
+              <$> try runRelease
 
   extractMostRecent =
     liftEffect
