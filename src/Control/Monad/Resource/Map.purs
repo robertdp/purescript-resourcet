@@ -10,7 +10,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Effect.Aff (Aff, Error, Fiber)
+import Effect.Aff (Aff, Fiber)
 import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
