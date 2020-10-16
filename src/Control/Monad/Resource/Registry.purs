@@ -1,11 +1,11 @@
 module Control.Monad.Resource.Registry where
 
 import Prelude
-import Control.Monad.Error.Class (throwError, try)
+import Control.Monad.Error.Class (throwError)
 import Control.Monad.Rec.Class (Step(..), tailRecM)
 import Data.Array as Array
 import Data.Either (either)
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (traverse_)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -78,12 +78,13 @@ reference :: Registry -> Aff Unit
 reference (Registry ref) = liftEffect $ Ref.modify_ (map \s -> s { references = add one s.references }) ref
 
 finalize :: Registry -> Aff Unit
-finalize registry@(Registry ref) = do
-  state <- liftEffect $ Ref.modify (map \s -> s { references = sub one s.references }) ref
-  case state of
-    Just { references }
-      | references == zero -> releaseAll registry
-    _ -> pure unit
+finalize registry@(Registry ref) =
+  Aff.invincible do
+    state <- liftEffect $ Ref.modify (map \s -> s { references = sub one s.references }) ref
+    case state of
+      Just { references }
+        | references == zero -> releaseAll registry
+      _ -> pure unit
 
 releaseAll :: Registry -> Aff Unit
 releaseAll (Registry ref) = tailRecM go []
@@ -98,7 +99,7 @@ releaseAll (Registry ref) = tailRecM go []
           Just runRelease ->
             Loop
               <$> either (Array.snoc errors) (const errors)
-              <$> try runRelease
+              <$> Aff.attempt runRelease
 
   extractMostRecent =
     Ref.read ref
