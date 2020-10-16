@@ -61,13 +61,11 @@ mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' 
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
 runResourceT :: forall m e a. MonadEffect m => MonadError e m => ResourceT m a -> m a
-runResourceT (ResourceT r) = do
-  s <- liftEffect createEmptyPool
-  run s `catchError` cleanup s
-  where
-  run s = r s <* liftEffect (finalizePool s)
-
-  cleanup s e = liftEffect (finalizePool s) *> throwError e
+runResourceT (ResourceT runResource) = do
+  pool <- liftEffect createEmptyPool
+  let
+    cleanup = liftEffect (finalizePool pool)
+  catchError (runResource pool <* cleanup) (\e -> cleanup *> throwError e)
 
 instance functorResourceT :: Monad m => Functor (ResourceT m) where
   map f (ResourceT r) = ResourceT (map f <<< r)
