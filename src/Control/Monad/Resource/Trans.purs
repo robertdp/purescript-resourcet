@@ -20,11 +20,11 @@ newtype ResourceT m a
 mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' b
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
-runResourceT :: forall m e a. MonadEffect m => MonadError e m => ResourceT m a -> m a
+runResourceT :: forall m e a. MonadAff m => MonadError e m => ResourceT m a -> m a
 runResourceT (ResourceT runResource) = do
   pool <- liftEffect Map.createEmpty
   let
-    cleanup = liftEffect (Map.finalize pool)
+    cleanup = liftAff (Map.finalize pool)
   catchError (runResource pool <* cleanup) (\e -> cleanup *> throwError e)
 
 flattenResourceT :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a

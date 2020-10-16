@@ -2,13 +2,14 @@ module Control.Monad.Resource.Map where
 
 import Prelude
 import Control.Monad.Rec.Class (Step(..), tailRecM)
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (traverse_)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (Aff, Fiber)
 import Effect.Aff as Aff
+import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
@@ -19,7 +20,7 @@ newtype ReleaseMap
       ( Maybe
           { nextKey :: Int
           , references :: Int
-          , releasers :: Map Int (Effect Unit)
+          , releasers :: Map Int (Aff Unit)
           }
       )
   )
@@ -31,7 +32,7 @@ derive newtype instance eqReleaseKey :: Eq ReleaseKey
 
 derive newtype instance ordReleaseKey :: Ord ReleaseKey
 
-register :: Effect Unit -> ReleaseMap -> Effect ReleaseKey
+register :: Aff Unit -> ReleaseMap -> Effect ReleaseKey
 register runRelease (ReleaseMap ref) =
   Ref.read ref
     >>= case _ of
@@ -47,13 +48,18 @@ register runRelease (ReleaseMap ref) =
             ref
           pure (ReleaseKey nextKey)
 
-release :: ReleaseKey -> ReleaseMap -> Effect Unit
+release :: ReleaseKey -> ReleaseMap -> Aff Unit
 release (ReleaseKey key) (ReleaseMap ref) =
-  Ref.read ref
-    >>= traverse_ \state ->
-        for_ (Map.lookup key state.releasers) \runRelease -> do
-          Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
-          runRelease
+  join
+    $ liftEffect
+    $ Ref.read ref
+    >>= case _ of
+        Nothing -> mempty
+        Just { releasers } -> case Map.lookup key releasers of
+          Nothing -> mempty
+          Just runRelease -> do
+            Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
+            pure runRelease
 
 has :: ReleaseKey -> ReleaseMap -> Effect Boolean
 has (ReleaseKey key) (ReleaseMap ref) =
@@ -65,29 +71,37 @@ has (ReleaseKey key) (ReleaseMap ref) =
 reference :: ReleaseMap -> Effect Unit
 reference (ReleaseMap ref) = Ref.modify_ (map \s -> s { references = add one s.references }) ref
 
-finalize :: ReleaseMap -> Effect Unit
+finalize :: ReleaseMap -> Aff Unit
 finalize pool@(ReleaseMap ref) = do
-  state <- Ref.modify (map \s -> s { references = sub one s.references }) ref
+  state <- liftEffect $ Ref.modify (map \s -> s { references = sub one s.references }) ref
   case state of
     Just { references }
       | references == zero -> releaseAll pool
     _ -> pure unit
 
-releaseAll :: ReleaseMap -> Effect Unit
+releaseAll :: ReleaseMap -> Aff Unit
 releaseAll (ReleaseMap ref) = tailRecM go unit
   where
   go _ = do
-    Ref.read ref
+    mostRecent <- extractMostRecent
+    case mostRecent of
+      Nothing -> do
+        liftEffect $ Ref.write Nothing ref
+        pure (Done unit)
+      Just runRelease -> do
+        runRelease
+        pure (Loop unit)
+
+  extractMostRecent =
+    liftEffect
+      $ Ref.read ref
       >>= case _ of
-          Nothing -> pure (Done unit)
-          Just state -> case Map.findMax state.releasers of
-            Nothing -> do
-              Ref.write Nothing ref
-              pure (Done unit)
+          Nothing -> pure Nothing
+          Just { releasers } -> case Map.findMax releasers of
+            Nothing -> pure Nothing
             Just { key, value } -> do
               Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
-              value
-              pure (Loop unit)
+              pure (Just value)
 
 createEmpty :: Effect ReleaseMap
 createEmpty = ReleaseMap <$> Ref.new initialState
@@ -99,13 +113,13 @@ forkAff aff pool = do
   fiberRef <- Ref.new Nothing
   let
     killFiber =
-      Ref.read fiberRef
-        >>= traverse_ (Aff.launchAff_ <<< Aff.killFiber (Aff.error "Killed by resource cleanup"))
+      liftEffect (Ref.read fiberRef)
+        >>= traverse_ (Aff.killFiber (Aff.error "Killed by resource cleanup"))
   key <- register (killFiber *> finalize pool) pool
   fiber <-
     Aff.launchAff
       $ Aff.cancelWith aff
-      $ Aff.effectCanceler (release key pool)
+      $ Aff.effectCanceler (Aff.launchAff_ $ release key pool)
   Ref.write (Just fiber) fiberRef
   reference pool
   pure fiber

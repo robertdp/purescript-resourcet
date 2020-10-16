@@ -11,15 +11,15 @@ import Control.Monad.Resource.Trans (ResourceT, mapResourceT)
 import Control.Monad.State.Trans (StateT)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Writer.Trans (WriterT)
-import Effect (Effect)
-import Effect.Class (class MonadEffect, liftEffect)
+import Effect.Aff (Aff)
+import Effect.Aff.Class (class MonadAff, liftAff)
 
 class
-  MonadEffect m <= MonadResource m where
-  liftResourceT :: forall a. ResourceT Effect a -> m a
+  MonadAff m <= MonadResource m where
+  liftResourceT :: forall a. ResourceT Aff a -> m a
 
-instance monadResourceResourceT :: MonadEffect m => MonadResource (ResourceT m) where
-  liftResourceT = mapResourceT liftEffect
+instance monadResourceResourceT :: MonadAff m => MonadResource (ResourceT m) where
+  liftResourceT = mapResourceT liftAff
 
 instance monadResourceContT :: MonadResource m => MonadResource (ContT r m) where
   liftResourceT = lift <<< liftResourceT
