@@ -4,7 +4,7 @@ module Control.Monad.Resource
   , acquire
   , release
   , release'
-  , isAcquired
+  , isRegistered
   , isReleased
   , module Class
   , module Trans
@@ -64,10 +64,10 @@ release (ReleaseKey key) =
               runRelease
 
 release' :: forall m. MonadEffect m => ReleaseKey -> ResourceT m Boolean
-release' key = isAcquired key <* release key
+release' key = isRegistered key <* release key
 
-isAcquired :: forall m. MonadEffect m => ReleaseKey -> ResourceT m Boolean
-isAcquired (ReleaseKey key) =
+isRegistered :: forall m. MonadEffect m => ReleaseKey -> ResourceT m Boolean
+isRegistered (ReleaseKey key) =
   ResourceT \poolRef ->
     liftEffect do
       Ref.read poolRef
@@ -76,4 +76,4 @@ isAcquired (ReleaseKey key) =
             Just { pool } -> pure $ Map.member key pool
 
 isReleased :: forall m. MonadEffect m => ReleaseKey -> ResourceT m Boolean
-isReleased = map not <<< isAcquired
+isReleased = map not <<< isRegistered
