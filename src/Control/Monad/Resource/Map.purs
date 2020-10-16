@@ -118,7 +118,7 @@ forkAff aff pool = do
   key <- register (killFiber *> finalize pool) pool
   fiber <-
     Aff.launchAff
-      $ Aff.cancelWith aff
+      $ Aff.cancelWith (aff <* release key pool)
       $ Aff.effectCanceler (Aff.launchAff_ $ release key pool)
   Ref.write (Just fiber) fiberRef
   reference pool
