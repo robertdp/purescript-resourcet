@@ -16,7 +16,7 @@ import Control.Monad.Resource.Pool (ReleaseKey) as Exports
 import Control.Monad.Resource.Pool as Pool
 import Control.Monad.Resource.Trans (ResourceT(..))
 import Control.Monad.Resource.Trans (ResourceT, mapResourceT, runResourceT) as Exports
-import Data.Foldable (sequence_, traverse_)
+import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
@@ -51,12 +51,11 @@ fork (ResourceT run) =
   liftResourceT
     $ ResourceT \pool -> do
         fiberRef <- Ref.new Nothing
-        key <-
-          Pool.register
-            ( Ref.read fiberRef
-                >>= traverse_ (Aff.launchAff_ <<< Aff.killFiber (Aff.error "Killed by resource cleanup"))
-            )
-            pool
+        let
+          killFiber =
+            Ref.read fiberRef
+              >>= traverse_ (Aff.launchAff_ <<< Aff.killFiber (Aff.error "Killed by resource cleanup"))
+        key <- Pool.register killFiber pool
         fiber <-
           Aff.launchAff
             $ Aff.cancelWith (run pool)
