@@ -1,5 +1,5 @@
 module Control.Monad.Resource
-  ( ResourceKey
+  ( ReleaseKey
   , acquire
   , release
   , release'
@@ -22,45 +22,38 @@ import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Exception (throw)
 import Effect.Ref as Ref
 
-newtype ResourceKey
-  = ResourceKey Int
+newtype ReleaseKey
+  = ReleaseKey Int
 
-derive newtype instance eqResourceKey :: Eq ResourceKey
+derive newtype instance eqReleaseKey :: Eq ReleaseKey
 
-derive newtype instance ordResourceKey :: Ord ResourceKey
+derive newtype instance ordReleaseKey :: Ord ReleaseKey
 
-acquire :: forall a m. MonadEffect m => Effect a -> (a -> Effect Unit) -> ResourceT m (Tuple ResourceKey a)
-acquire runAcquire runRelease =
+register :: forall m. MonadEffect m => Effect Unit -> ResourceT m ReleaseKey
+register runRelease =
   ResourceT \poolRef ->
     liftEffect do
       Ref.read poolRef
         >>= case _ of
             Nothing -> throw "Attempting to acquire from closed pool"
             Just { fresh: key } -> do
-              resource <- runAcquire
               Ref.modify_
                 ( map \state ->
                     { fresh: add one state.fresh
-                    , pool: Map.insert key (runRelease resource) state.pool
+                    , pool: Map.insert key runRelease state.pool
                     }
                 )
                 poolRef
-              pure (Tuple (ResourceKey key) resource)
+              pure (ReleaseKey key)
 
-isAcquired :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
-isAcquired (ResourceKey key) =
-  ResourceT \poolRef ->
-    liftEffect do
-      Ref.read poolRef
-        >>= case _ of
-            Nothing -> pure false
-            Just { pool } -> pure $ Map.member key pool
+acquire :: forall a m. MonadEffect m => Effect a -> (a -> Effect Unit) -> ResourceT m (Tuple ReleaseKey a)
+acquire runAcquire runRelease = do
+  resource <- liftEffect runAcquire
+  key <- register (runRelease resource)
+  pure (Tuple key resource)
 
-isReleased :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
-isReleased = map not <<< isAcquired
-
-release :: forall m. MonadEffect m => ResourceKey -> ResourceT m Unit
-release (ResourceKey key) =
+release :: forall m. MonadEffect m => ReleaseKey -> ResourceT m Unit
+release (ReleaseKey key) =
   ResourceT \poolRef ->
     liftEffect do
       Ref.read poolRef
@@ -69,5 +62,17 @@ release (ResourceKey key) =
               Ref.modify_ (map \state -> state { pool = Map.delete key state.pool }) poolRef
               runRelease
 
-release' :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
+release' :: forall m. MonadEffect m => ReleaseKey -> ResourceT m Boolean
 release' key = isAcquired key <* release key
+
+isAcquired :: forall m. MonadEffect m => ReleaseKey -> ResourceT m Boolean
+isAcquired (ReleaseKey key) =
+  ResourceT \poolRef ->
+    liftEffect do
+      Ref.read poolRef
+        >>= case _ of
+            Nothing -> pure false
+            Just { pool } -> pure $ Map.member key pool
+
+isReleased :: forall m. MonadEffect m => ReleaseKey -> ResourceT m Boolean
+isReleased = map not <<< isAcquired
