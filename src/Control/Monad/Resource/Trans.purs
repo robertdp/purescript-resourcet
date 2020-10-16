@@ -25,17 +25,13 @@ type Resource
 mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' b
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
-runResourceT :: forall m e a. MonadAff m => MonadError e m => ResourceT m a -> m a
-runResourceT (ResourceT run) = do
+runResourceT :: forall m e a. MonadAff m => MonadError e m => (m a -> Aff a) -> ResourceT m a -> Aff a
+runResourceT runM (ResourceT run) = do
   registry <- liftEffect Registry.createEmpty
-  let
-    cleanup = liftAff $ Registry.cleanup registry
-  catchError (run registry <* cleanup) (\e -> cleanup *> throwError e)
+  Aff.bracket (runM $ run registry) (\_ -> Registry.cleanup registry) pure
 
 runResource :: forall a. Resource a -> Aff a
-runResource (ResourceT run) = do
-  registry <- liftEffect Registry.createEmpty
-  Aff.bracket (run registry) (\_ -> Registry.cleanup registry) pure
+runResource = runResourceT identity
 
 flattenResourceT :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
 flattenResourceT (ResourceT run) = ResourceT \registry -> case run registry of ResourceT run' -> run' registry
