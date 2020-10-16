@@ -6,7 +6,10 @@ import Data.Foldable (for_, traverse_)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
+import Effect.Aff (Aff, Fiber)
+import Effect.Aff as Aff
 import Effect.Exception (throw)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
@@ -78,3 +81,18 @@ createEmpty :: Effect ResourcePool
 createEmpty = ResourcePool <$> Ref.new initialState
   where
   initialState = Just { fresh: 0, map: Map.empty }
+
+forkAff :: forall a. Aff a -> ResourcePool -> Effect (Tuple ReleaseKey (Fiber a))
+forkAff aff pool = do
+  fiberRef <- Ref.new Nothing
+  let
+    killFiber =
+      Ref.read fiberRef
+        >>= traverse_ (Aff.launchAff_ <<< Aff.killFiber (Aff.error "Killed by resource cleanup"))
+  key <- register killFiber pool
+  fiber <-
+    Aff.launchAff
+      $ Aff.cancelWith aff
+      $ Aff.effectCanceler (release key pool)
+  Ref.write (Just fiber) fiberRef
+  pure (Tuple key fiber)
