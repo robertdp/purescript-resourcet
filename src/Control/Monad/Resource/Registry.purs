@@ -118,16 +118,13 @@ createEmpty = Registry <$> Ref.new initialState
 forkAff :: forall a. Aff a -> Registry -> Effect (Fiber a)
 forkAff aff registry = do
   reference registry
-  fiberRef <- Ref.new Nothing
   let
-    killAndCleanup = do
-      fiber <- Ref.read fiberRef
-      Aff.launchAff_ do
-        for_ fiber $ Aff.killFiber (Aff.error "Killed by resource cleanup")
-        finalize registry
-  fiber <-
-    Aff.launchAff
-      $ Aff.cancelWith (aff <* finalize registry)
-      $ Aff.effectCanceler killAndCleanup
-  Ref.write (Just fiber) fiberRef
-  pure fiber
+    runFork = do
+      result <- try aff
+      finalize registry
+      either throwError pure result
+
+    onCancel = Aff.launchAff_ $ finalize registry
+  Aff.launchAff
+    $ Aff.cancelWith runFork
+    $ Aff.effectCanceler onCancel
