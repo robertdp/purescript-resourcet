@@ -1,5 +1,6 @@
 module Control.Monad.Resource
   ( ReleaseKey
+  , register
   , acquire
   , release
   , release'
