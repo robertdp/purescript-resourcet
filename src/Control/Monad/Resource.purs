@@ -38,7 +38,13 @@ acquire runAcquire runRelease =
             Nothing -> throw "Attempting to acquire from closed pool"
             Just { fresh: key } -> do
               resource <- runAcquire
-              Ref.modify_ (map \state -> { fresh: add one state.fresh, pool: Map.insert key (runRelease resource) state.pool }) poolRef
+              Ref.modify_
+                ( map \state ->
+                    { fresh: add one state.fresh
+                    , pool: Map.insert key (runRelease resource) state.pool
+                    }
+                )
+                poolRef
               pure (Tuple (ResourceKey key) resource)
 
 isAcquired :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
