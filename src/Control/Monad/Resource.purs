@@ -35,19 +35,18 @@ register :: forall m. MonadResource m => Effect Unit -> m ReleaseKey
 register runRelease =
   liftResourceT
     $ ResourceT \poolRef ->
-        liftEffect do
-          Ref.read poolRef
-            >>= case _ of
-                Nothing -> throw "Attempting to acquire from closed pool"
-                Just { fresh: key } -> do
-                  Ref.modify_
-                    ( map \state ->
-                        { fresh: add one state.fresh
-                        , pool: Map.insert key runRelease state.pool
-                        }
-                    )
-                    poolRef
-                  pure (ReleaseKey key)
+        Ref.read poolRef
+          >>= case _ of
+              Nothing -> throw "Attempting to acquire from closed pool"
+              Just { fresh: key } -> do
+                Ref.modify_
+                  ( map \state ->
+                      { fresh: add one state.fresh
+                      , pool: Map.insert key runRelease state.pool
+                      }
+                  )
+                  poolRef
+                pure (ReleaseKey key)
 
 acquire :: forall m a. MonadResource m => Effect a -> (a -> Effect Unit) -> m (Tuple ReleaseKey a)
 acquire runAcquire runRelease = do
@@ -59,12 +58,11 @@ release :: forall m. MonadResource m => ReleaseKey -> m Unit
 release (ReleaseKey key) =
   liftResourceT
     $ ResourceT \poolRef ->
-        liftEffect do
-          Ref.read poolRef
-            >>= traverse_ \{ pool } ->
-                for_ (Map.lookup key pool) \runRelease -> do
-                  Ref.modify_ (map \state -> state { pool = Map.delete key state.pool }) poolRef
-                  runRelease
+        Ref.read poolRef
+          >>= traverse_ \{ pool } ->
+              for_ (Map.lookup key pool) \runRelease -> do
+                Ref.modify_ (map \state -> state { pool = Map.delete key state.pool }) poolRef
+                runRelease
 
 release' :: forall m. MonadResource m => ReleaseKey -> m Boolean
 release' key = isRegistered key <* release key
@@ -73,11 +71,10 @@ isRegistered :: forall m. MonadResource m => ReleaseKey -> m Boolean
 isRegistered (ReleaseKey key) =
   liftResourceT
     $ ResourceT \poolRef ->
-        liftEffect do
-          Ref.read poolRef
-            >>= case _ of
-                Nothing -> pure false
-                Just { pool } -> pure $ Map.member key pool
+        Ref.read poolRef
+          >>= case _ of
+              Nothing -> pure false
+              Just { pool } -> pure $ Map.member key pool
 
 isReleased :: forall m. MonadResource m => ReleaseKey -> m Boolean
 isReleased = map not <<< isRegistered
