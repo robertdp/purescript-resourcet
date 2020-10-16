@@ -5,7 +5,7 @@ import Control.Monad.Error.Class (throwError, try)
 import Control.Monad.Rec.Class (Step(..), tailRecM)
 import Data.Array as Array
 import Data.Either (either)
-import Data.Foldable (traverse_)
+import Data.Foldable (for_, traverse_)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -64,6 +64,9 @@ release (ReleaseKey key) (Registry ref) =
             Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
             pure runRelease
 
+deregister :: ReleaseKey -> Registry -> Effect Unit
+deregister (ReleaseKey key) (Registry ref) = Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
+
 has :: ReleaseKey -> Registry -> Effect Boolean
 has (ReleaseKey key) (Registry ref) =
   Ref.read ref
@@ -86,7 +89,7 @@ releaseAll :: Registry -> Aff Unit
 releaseAll (Registry ref) = tailRecM go []
   where
   go errors =
-    extractMostRecent
+    liftEffect extractMostRecent
       >>= case _ of
           Nothing -> do
             liftEffect $ Ref.write Nothing ref
@@ -98,8 +101,7 @@ releaseAll (Registry ref) = tailRecM go []
               <$> try runRelease
 
   extractMostRecent =
-    liftEffect
-      $ Ref.read ref
+    Ref.read ref
       >>= case _ of
           Nothing -> pure Nothing
           Just { releasers } -> case Map.findMax releasers of
@@ -118,13 +120,14 @@ forkAff aff registry = do
   reference registry
   fiberRef <- Ref.new Nothing
   let
-    killFiber =
-      liftEffect (Ref.read fiberRef)
-        >>= traverse_ (Aff.killFiber (Aff.error "Killed by resource cleanup"))
-  key <- register (killFiber *> finalize registry) registry
+    killAndCleanup = do
+      fiber <- Ref.read fiberRef
+      Aff.launchAff_ do
+        for_ fiber $ Aff.killFiber (Aff.error "Killed by resource cleanup")
+        finalize registry
   fiber <-
     Aff.launchAff
-      $ Aff.cancelWith (aff <* release key registry)
-      $ Aff.effectCanceler (Aff.launchAff_ $ release key registry)
+      $ Aff.cancelWith (aff <* finalize registry)
+      $ Aff.effectCanceler killAndCleanup
   Ref.write (Just fiber) fiberRef
   pure fiber
