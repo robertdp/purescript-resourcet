@@ -4,48 +4,15 @@ import Prelude
 import Control.Monad.Cont (class MonadCont, callCC)
 import Control.Monad.Error.Class (class MonadError, class MonadThrow, catchError, throwError)
 import Control.Monad.Reader (class MonadAsk, class MonadReader, ask, local)
-import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
+import Control.Monad.Rec.Class (class MonadRec, tailRecM)
+import Control.Monad.Resource.Pool (ResourcePool)
+import Control.Monad.Resource.Pool as Pool
 import Control.Monad.State (class MonadState, state)
 import Control.Monad.Trans.Class (class MonadTrans, lift)
 import Control.Monad.Writer (class MonadTell, class MonadWriter, listen, pass, tell)
 import Control.MonadPlus (class Alt, class Alternative, class MonadPlus, class MonadZero, class Plus, alt, empty)
-import Data.Map (Map)
-import Data.Map as Map
-import Data.Maybe (Maybe(..))
-import Effect (Effect)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
-import Effect.Ref (Ref)
-import Effect.Ref as Ref
-
-type ResourcePool
-  = Ref
-      ( Maybe
-          { fresh :: Int
-          , pool :: Map Int (Effect Unit)
-          }
-      )
-
-finalizePool :: ResourcePool -> Effect Unit
-finalizePool poolRef = tailRecM go unit
-  where
-  go _ = do
-    Ref.read poolRef
-      >>= case _ of
-          Nothing -> pure (Done unit)
-          Just state -> case Map.findMax state.pool of
-            Nothing -> do
-              Ref.write Nothing poolRef
-              pure (Done unit)
-            Just { key, value } -> do
-              Ref.modify_ (map \s -> s { pool = Map.delete key s.pool }) poolRef
-              value
-              pure (Loop unit)
-
-createEmptyPool :: Effect ResourcePool
-createEmptyPool = Ref.new initialState
-  where
-  initialState = Just { fresh: 0, pool: Map.empty }
 
 newtype ResourceT m a
   = ResourceT (ResourcePool -> m a)
@@ -55,9 +22,9 @@ mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
 runResourceT :: forall m e a. MonadEffect m => MonadError e m => ResourceT m a -> m a
 runResourceT (ResourceT runResource) = do
-  pool <- liftEffect createEmptyPool
+  pool <- liftEffect Pool.createEmpty
   let
-    cleanup = liftEffect (finalizePool pool)
+    cleanup = liftEffect (Pool.finalize pool)
   catchError (runResource pool <* cleanup) (\e -> cleanup *> throwError e)
 
 instance functorResourceT :: Monad m => Functor (ResourceT m) where

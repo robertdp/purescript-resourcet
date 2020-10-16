@@ -1,52 +1,32 @@
 module Control.Monad.Resource
-  ( ReleaseKey
-  , register
+  ( register
   , acquire
   , release
   , release'
   , isRegistered
   , isReleased
-  , module Class
-  , module Trans
+  , module Exports
   ) where
 
 import Prelude
 import Control.Monad.Resource.Class (class MonadResource, liftResourceT)
-import Control.Monad.Resource.Class (class MonadResource, liftResourceT) as Class
+import Control.Monad.Resource.Class (class MonadResource, liftResourceT) as Exports
+import Control.Monad.Resource.Pool (ReleaseKey)
+import Control.Monad.Resource.Pool (ReleaseKey) as Exports
+import Control.Monad.Resource.Pool as Pool
 import Control.Monad.Resource.Trans (ResourceT(..))
-import Control.Monad.Resource.Trans (ResourceT, mapResourceT, runResourceT) as Trans
-import Data.Foldable (for_, traverse_)
-import Data.Map as Map
+import Control.Monad.Resource.Trans (ResourceT, mapResourceT, runResourceT) as Exports
+import Data.Foldable (sequence_)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
+import Effect.Aff (Aff, Fiber)
+import Effect.Aff as Aff
 import Effect.Class (liftEffect)
-import Effect.Exception (throw)
 import Effect.Ref as Ref
 
-newtype ReleaseKey
-  = ReleaseKey Int
-
-derive newtype instance eqReleaseKey :: Eq ReleaseKey
-
-derive newtype instance ordReleaseKey :: Ord ReleaseKey
-
 register :: forall m. MonadResource m => Effect Unit -> m ReleaseKey
-register runRelease =
-  liftResourceT
-    $ ResourceT \poolRef ->
-        Ref.read poolRef
-          >>= case _ of
-              Nothing -> throw "Attempting to acquire from closed pool"
-              Just { fresh: key } -> do
-                Ref.modify_
-                  ( map \state ->
-                      { fresh: add one state.fresh
-                      , pool: Map.insert key runRelease state.pool
-                      }
-                  )
-                  poolRef
-                pure (ReleaseKey key)
+register = liftResourceT <<< ResourceT <<< Pool.register
 
 acquire :: forall m a. MonadResource m => Effect a -> (a -> Effect Unit) -> m (Tuple ReleaseKey a)
 acquire runAcquire runRelease = do
@@ -55,26 +35,26 @@ acquire runAcquire runRelease = do
   pure (Tuple key resource)
 
 release :: forall m. MonadResource m => ReleaseKey -> m Unit
-release (ReleaseKey key) =
-  liftResourceT
-    $ ResourceT \poolRef ->
-        Ref.read poolRef
-          >>= traverse_ \{ pool } ->
-              for_ (Map.lookup key pool) \runRelease -> do
-                Ref.modify_ (map \state -> state { pool = Map.delete key state.pool }) poolRef
-                runRelease
+release = liftResourceT <<< ResourceT <<< Pool.release
 
 release' :: forall m. MonadResource m => ReleaseKey -> m Boolean
 release' key = isRegistered key <* release key
 
 isRegistered :: forall m. MonadResource m => ReleaseKey -> m Boolean
-isRegistered (ReleaseKey key) =
-  liftResourceT
-    $ ResourceT \poolRef ->
-        Ref.read poolRef
-          >>= case _ of
-              Nothing -> pure false
-              Just { pool } -> pure $ Map.member key pool
+isRegistered = liftResourceT <<< ResourceT <<< Pool.has
 
 isReleased :: forall m. MonadResource m => ReleaseKey -> m Boolean
 isReleased = map not <<< isRegistered
+
+fork :: forall a. ResourceT Aff a -> ResourceT Effect (Tuple ReleaseKey (Fiber a))
+fork (ResourceT run) = do
+  canceler <- liftEffect $ Ref.new Nothing
+  key <- register (Ref.read canceler >>= sequence_)
+  fiber <-
+    liftResourceT
+      $ ResourceT \pool ->
+          Aff.launchAff
+            $ Aff.cancelWith (run pool)
+            $ Aff.effectCanceler (Pool.release key pool)
+  liftEffect $ Ref.write (Just (Aff.launchAff_ (Aff.killFiber (Aff.error "Killed by resource cleanup") fiber))) canceler
+  pure (Tuple key fiber)

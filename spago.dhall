@@ -5,10 +5,7 @@ You can edit this file as you like.
 { name = "my-project"
 , dependencies =
   [ "aff"
-  , "console"
-  , "effect"
   , "ordered-collections"
-  , "psci-support"
   , "refs"
   , "transformers"
   ]
