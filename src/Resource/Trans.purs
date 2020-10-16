@@ -12,11 +12,9 @@ import Control.MonadPlus (class Alt, class Alternative, class MonadPlus, class M
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
-import Effect.Exception (throw)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 
@@ -50,42 +48,6 @@ finalizePool poolRef = tailRecM go unit
               Ref.modify_ (map \s -> s { pool = Map.delete key s.pool }) poolRef
               value
               pure (Loop unit)
-
-newKey :: ResourcePool -> Effect ResourceKey
-newKey poolRef = do
-  Ref.read poolRef
-    >>= case _ of
-        Nothing -> throw "Attempting to generate new key from closed resource pool"
-        Just { fresh } -> do
-          Ref.modify_ (map \state -> state { fresh = add state.fresh one }) poolRef
-          pure (ResourceKey fresh)
-
-acquire :: forall a. (ResourceKey -> Effect a) -> (a -> Effect Unit) -> ResourceT Effect (Tuple ResourceKey a)
-acquire runAcquire runRelease =
-  ResourceT \poolRef -> do
-    state <- Ref.read poolRef
-    case state of
-      Nothing -> throw "Attempting to acquire from closed pool"
-      Just { fresh } -> do
-        let
-          key = ResourceKey fresh
-        resource <- runAcquire key
-        Ref.modify_ (map \s -> s { fresh = add s.fresh one, pool = Map.insert fresh (runRelease resource) s.pool }) poolRef
-        pure (Tuple key resource)
-
-release :: ResourceKey -> ResourceT Effect Boolean
-release (ResourceKey key) =
-  ResourceT \poolRef -> do
-    state <- Ref.read poolRef
-    case state of
-      Nothing -> pure false
-      Just { pool } -> do
-        case Map.lookup key pool of
-          Nothing -> pure false
-          Just runRelease -> do
-            Ref.modify_ (map \s -> s { pool = Map.delete key s.pool }) poolRef
-            runRelease
-            pure true
 
 createEmptyPool :: Effect ResourcePool
 createEmptyPool = Ref.new initialState
