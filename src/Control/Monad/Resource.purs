@@ -16,7 +16,7 @@ import Control.Monad.Resource.Class (class MonadResource, liftResourceT) as Expo
 import Control.Monad.Resource.Map (ReleaseKey)
 import Control.Monad.Resource.Map (ReleaseKey) as Exports
 import Control.Monad.Resource.Map as Map
-import Control.Monad.Resource.Trans (ResourceT(..))
+import Control.Monad.Resource.Trans (ResourceT(..), runResourceT)
 import Control.Monad.Resource.Trans (ResourceT, mapResourceT, runResourceT) as Exports
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff, Fiber)
@@ -24,7 +24,7 @@ import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 
 register :: forall m. MonadResource m => Aff Unit -> m ReleaseKey
-register runRelease = liftResourceT $ ResourceT \pool -> liftEffect (Map.register runRelease pool)
+register runRelease = liftResourceT $ ResourceT \pool -> liftEffect $ Map.register runRelease pool
 
 acquire :: forall m a. MonadResource m => Aff a -> (a -> Aff Unit) -> m (Tuple ReleaseKey a)
 acquire runAcquire runRelease = do
@@ -45,7 +45,7 @@ isReleased :: forall m. MonadResource m => ReleaseKey -> m Boolean
 isReleased = map not <<< isRegistered
 
 fork :: forall a m. MonadResource m => ResourceT Aff a -> m (Fiber a)
-fork (ResourceT run) = liftResourceT $ ResourceT \pool -> liftEffect $ Map.forkAff (run pool) pool
+fork child = liftResourceT $ ResourceT \pool -> liftEffect $ Map.forkAff (runResourceT child) pool
 
 forkAff :: forall a m. MonadResource m => Aff a -> m (Fiber a)
 forkAff aff = liftResourceT $ ResourceT \pool -> liftEffect $ Map.forkAff aff pool
