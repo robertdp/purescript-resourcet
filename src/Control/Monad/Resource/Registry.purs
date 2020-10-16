@@ -77,8 +77,8 @@ has (ReleaseKey key) (Registry ref) =
 reference :: Registry -> Aff Unit
 reference (Registry ref) = liftEffect $ Ref.modify_ (map \s -> s { references = add one s.references }) ref
 
-finalize :: Registry -> Aff Unit
-finalize registry@(Registry ref) =
+cleanup :: Registry -> Aff Unit
+cleanup registry@(Registry ref) =
   Aff.invincible do
     state <- liftEffect $ Ref.modify (map \s -> s { references = sub one s.references }) ref
     case state of
@@ -121,5 +121,5 @@ forkAff aff registry = do
   reference registry
   Aff.bracket
     (Aff.forkAff aff)
-    (\_ -> finalize registry)
+    (\_ -> cleanup registry)
     pure

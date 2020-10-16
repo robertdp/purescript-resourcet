@@ -11,21 +11,31 @@ import Control.Monad.State (class MonadState, state)
 import Control.Monad.Trans.Class (class MonadTrans, lift)
 import Control.Monad.Writer (class MonadTell, class MonadWriter, listen, pass, tell)
 import Control.MonadPlus (class Alt, class Alternative, class MonadPlus, class MonadZero, class Plus, alt, empty)
+import Effect.Aff (Aff)
+import Effect.Aff as Aff
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 
 newtype ResourceT m a
   = ResourceT (Registry -> m a)
 
+type Resource
+  = ResourceT Aff
+
 mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' b
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
 runResourceT :: forall m e a. MonadAff m => MonadError e m => ResourceT m a -> m a
-runResourceT (ResourceT runResource) = do
+runResourceT (ResourceT run) = do
   registry <- liftEffect Registry.createEmpty
   let
-    cleanup = liftAff (Registry.finalize registry)
-  catchError (runResource registry <* cleanup) (\e -> cleanup *> throwError e)
+    cleanup = liftAff $ Registry.cleanup registry
+  catchError (run registry <* cleanup) (\e -> cleanup *> throwError e)
+
+runResource :: forall a. Resource a -> Aff a
+runResource (ResourceT run) = do
+  registry <- liftEffect Registry.createEmpty
+  Aff.bracket (run registry) (\_ -> Registry.cleanup registry) pure
 
 flattenResourceT :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
 flattenResourceT (ResourceT run) = ResourceT \registry -> case run registry of ResourceT run' -> run' registry
