@@ -17,7 +17,7 @@ import Control.Monad.Resource.Registry (ReleaseKey)
 import Control.Monad.Resource.Registry (ReleaseKey) as Exports
 import Control.Monad.Resource.Registry as Registry
 import Control.Monad.Resource.Trans (ResourceT(..), runResourceT)
-import Control.Monad.Resource.Trans (ResourceT, mapResourceT, runResourceT) as Exports
+import Control.Monad.Resource.Trans (Resource, ResourceT, mapResourceT, runResource, runResourceT) as Exports
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff, Fiber)
 import Effect.Aff.Class (liftAff)
