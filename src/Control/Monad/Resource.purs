@@ -49,3 +49,6 @@ fork (ResourceT run) = liftResourceT $ ResourceT \pool -> Pool.forkAff (run pool
 
 forkAff :: forall a m. MonadResource m => Aff a -> m (Tuple ReleaseKey (Fiber a))
 forkAff aff = liftResourceT $ ResourceT \pool -> Pool.forkAff aff pool
+
+join :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
+join (ResourceT run) = ResourceT \pool -> case run pool of ResourceT run' -> run' pool
