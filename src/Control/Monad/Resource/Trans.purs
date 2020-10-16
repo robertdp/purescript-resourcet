@@ -5,8 +5,8 @@ import Control.Monad.Cont (class MonadCont, callCC)
 import Control.Monad.Error.Class (class MonadError, class MonadThrow, catchError, throwError)
 import Control.Monad.Reader (class MonadAsk, class MonadReader, ask, local)
 import Control.Monad.Rec.Class (class MonadRec, tailRecM)
-import Control.Monad.Resource.Pool (ResourcePool)
-import Control.Monad.Resource.Pool as Pool
+import Control.Monad.Resource.Map (ReleaseMap)
+import Control.Monad.Resource.Map as Map
 import Control.Monad.State (class MonadState, state)
 import Control.Monad.Trans.Class (class MonadTrans, lift)
 import Control.Monad.Writer (class MonadTell, class MonadWriter, listen, pass, tell)
@@ -15,20 +15,20 @@ import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 
 newtype ResourceT m a
-  = ResourceT (ResourcePool -> m a)
+  = ResourceT (ReleaseMap -> m a)
 
 mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' b
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
 runResourceT :: forall m e a. MonadEffect m => MonadError e m => ResourceT m a -> m a
 runResourceT (ResourceT runResource) = do
-  pool <- liftEffect Pool.createEmpty
+  pool <- liftEffect Map.createEmpty
   let
-    cleanup = liftEffect (Pool.finalize pool)
+    cleanup = liftEffect (Map.finalize pool)
   catchError (runResource pool <* cleanup) (\e -> cleanup *> throwError e)
 
-mergeResourceT :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
-mergeResourceT (ResourceT run) = ResourceT \pool -> case run pool of ResourceT run' -> run' pool
+flattenResourceT :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
+flattenResourceT (ResourceT run) = ResourceT \pool -> case run pool of ResourceT run' -> run' pool
 
 instance functorResourceT :: Monad m => Functor (ResourceT m) where
   map f (ResourceT r) = ResourceT (map f <<< r)
