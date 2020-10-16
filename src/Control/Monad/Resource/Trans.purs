@@ -26,13 +26,6 @@ type ResourcePool
           }
       )
 
-newtype ResourceKey
-  = ResourceKey Int
-
-derive newtype instance eqResourceKey :: Eq ResourceKey
-
-derive newtype instance ordResourceKey :: Ord ResourceKey
-
 finalizePool :: ResourcePool -> Effect Unit
 finalizePool poolRef = tailRecM go unit
   where

@@ -1,7 +1,7 @@
 module Control.Monad.Resource where
 
 import Prelude
-import Control.Monad.Resource.Trans (ResourceKey(..), ResourceT(..))
+import Control.Monad.Resource.Trans (ResourceT(..))
 import Data.Foldable (for_, traverse_)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -10,6 +10,13 @@ import Effect (Effect)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Exception (throw)
 import Effect.Ref as Ref
+
+newtype ResourceKey
+  = ResourceKey Int
+
+derive newtype instance eqResourceKey :: Eq ResourceKey
+
+derive newtype instance ordResourceKey :: Ord ResourceKey
 
 acquire :: forall a m. MonadEffect m => Effect a -> (a -> Effect Unit) -> ResourceT m (Tuple ResourceKey a)
 acquire runAcquire runRelease =
