@@ -33,22 +33,22 @@ acquire :: forall a m. MonadEffect m => Effect a -> (a -> Effect Unit) -> Resour
 acquire runAcquire runRelease =
   ResourceT \poolRef ->
     liftEffect do
-      state <- Ref.read poolRef
-      case state of
-        Nothing -> throw "Attempting to acquire from closed pool"
-        Just { fresh } -> do
-          resource <- runAcquire
-          Ref.modify_ (map \s -> s { fresh = add one s.fresh, pool = Map.insert fresh (runRelease resource) s.pool }) poolRef
-          pure (Tuple (ResourceKey fresh) resource)
+      Ref.read poolRef
+        >>= case _ of
+            Nothing -> throw "Attempting to acquire from closed pool"
+            Just { fresh } -> do
+              resource <- runAcquire
+              Ref.modify_ (map \s -> s { fresh = add one s.fresh, pool = Map.insert fresh (runRelease resource) s.pool }) poolRef
+              pure (Tuple (ResourceKey fresh) resource)
 
 isAcquired :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
 isAcquired (ResourceKey key) =
   ResourceT \poolRef ->
     liftEffect do
-      state <- Ref.read poolRef
-      case state of
-        Nothing -> pure false
-        Just { pool } -> pure $ Map.member key pool
+      Ref.read poolRef
+        >>= case _ of
+            Nothing -> pure false
+            Just { pool } -> pure $ Map.member key pool
 
 isReleased :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
 isReleased = map not <<< isAcquired
@@ -56,12 +56,12 @@ isReleased = map not <<< isAcquired
 release :: forall m. MonadEffect m => ResourceKey -> ResourceT m Unit
 release (ResourceKey key) =
   ResourceT \poolRef ->
-    liftEffect
-      $ Ref.read poolRef
-      >>= traverse_ \{ pool } ->
-          for_ (Map.lookup key pool) \runRelease -> do
-            Ref.modify_ (map \s -> s { pool = Map.delete key s.pool }) poolRef
-            runRelease
+    liftEffect do
+      Ref.read poolRef
+        >>= traverse_ \{ pool } ->
+            for_ (Map.lookup key pool) \runRelease -> do
+              Ref.modify_ (map \s -> s { pool = Map.delete key s.pool }) poolRef
+              runRelease
 
 release' :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
 release' key = isAcquired key <* release key
