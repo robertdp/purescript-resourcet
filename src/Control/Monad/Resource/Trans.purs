@@ -5,8 +5,8 @@ import Control.Monad.Cont (class MonadCont, callCC)
 import Control.Monad.Error.Class (class MonadError, class MonadThrow, catchError, throwError)
 import Control.Monad.Reader (class MonadAsk, class MonadReader, ask, local)
 import Control.Monad.Rec.Class (class MonadRec, tailRecM)
-import Control.Monad.Resource.Map (ReleaseMap)
-import Control.Monad.Resource.Map as Map
+import Control.Monad.Resource.Registry (Registry)
+import Control.Monad.Resource.Registry as Registry
 import Control.Monad.State (class MonadState, state)
 import Control.Monad.Trans.Class (class MonadTrans, lift)
 import Control.Monad.Writer (class MonadTell, class MonadWriter, listen, pass, tell)
@@ -15,20 +15,20 @@ import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 
 newtype ResourceT m a
-  = ResourceT (ReleaseMap -> m a)
+  = ResourceT (Registry -> m a)
 
 mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' b
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
 runResourceT :: forall m e a. MonadAff m => MonadError e m => ResourceT m a -> m a
 runResourceT (ResourceT runResource) = do
-  pool <- liftEffect Map.createEmpty
+  registry <- liftEffect Registry.createEmpty
   let
-    cleanup = liftAff (Map.finalize pool)
-  catchError (runResource pool <* cleanup) (\e -> cleanup *> throwError e)
+    cleanup = liftAff (Registry.finalize registry)
+  catchError (runResource registry <* cleanup) (\e -> cleanup *> throwError e)
 
 flattenResourceT :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
-flattenResourceT (ResourceT run) = ResourceT \pool -> case run pool of ResourceT run' -> run' pool
+flattenResourceT (ResourceT run) = ResourceT \registry -> case run registry of ResourceT run' -> run' registry
 
 instance functorResourceT :: Monad m => Functor (ResourceT m) where
   map f (ResourceT r) = ResourceT (map f <<< r)
@@ -40,11 +40,11 @@ instance applicativeResourceT :: Monad m => Applicative (ResourceT m) where
   pure a = ResourceT \_ -> pure a
 
 instance bindResourceT :: Monad m => Bind (ResourceT m) where
-  bind (ResourceT r) f =
-    ResourceT \p -> do
-      a <- r p
+  bind (ResourceT run) f =
+    ResourceT \registry -> do
+      a <- run registry
       case f a of
-        ResourceT r' -> r' p
+        ResourceT run' -> run' registry
 
 instance monadResourceT :: Monad m => Monad (ResourceT m)
 
@@ -68,16 +68,16 @@ instance monadStateResourceT :: MonadState s m => MonadState s (ResourceT m) whe
   state = lift <<< state
 
 instance monadContResourceT :: MonadCont m => MonadCont (ResourceT m) where
-  callCC f = ResourceT \p -> callCC \k -> case f (lift <<< k) of ResourceT r -> r p
+  callCC f = ResourceT \registry -> callCC \k -> case f (lift <<< k) of ResourceT run -> run registry
 
 instance monadThrowResourceT :: MonadThrow e m => MonadThrow e (ResourceT m) where
   throwError = lift <<< throwError
 
 instance monadErrorResourceT :: MonadError e m => MonadError e (ResourceT m) where
-  catchError (ResourceT r) h =
-    ResourceT \p ->
-      catchError (r p) \e -> case h e of
-        ResourceT r' -> r' p
+  catchError (ResourceT run) h =
+    ResourceT \registry ->
+      catchError (run registry) \e -> case h e of
+        ResourceT run' -> run' registry
 
 instance monadEffectResourceT :: MonadEffect m => MonadEffect (ResourceT m) where
   liftEffect = lift <<< liftEffect
@@ -86,10 +86,10 @@ instance monadAffResourceT :: MonadAff m => MonadAff (ResourceT m) where
   liftAff = lift <<< liftAff
 
 instance monadRecResourceT :: MonadRec m => MonadRec (ResourceT m) where
-  tailRecM k a = ResourceT \p -> tailRecM (\a' -> case k a' of ResourceT r -> pure =<< r p) a
+  tailRecM k a = ResourceT \registry -> tailRecM (\a' -> case k a' of ResourceT run -> pure =<< run registry) a
 
 instance altResourceT :: (Monad m, Alt m) => Alt (ResourceT m) where
-  alt (ResourceT r) (ResourceT r') = ResourceT \p -> alt (r p) (r' p)
+  alt (ResourceT run) (ResourceT run') = ResourceT \registry -> alt (run registry) (run' registry)
 
 instance plusResourceT :: (Monad m, Plus m) => Plus (ResourceT m) where
   empty = lift empty

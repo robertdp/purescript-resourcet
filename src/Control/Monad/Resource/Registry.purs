@@ -1,4 +1,4 @@
-module Control.Monad.Resource.Map where
+module Control.Monad.Resource.Registry where
 
 import Prelude
 import Control.Monad.Error.Class (throwError, try)
@@ -17,8 +17,8 @@ import Effect.Exception (throw)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 
-newtype ReleaseMap
-  = ReleaseMap
+newtype Registry
+  = Registry
   ( Ref
       ( Maybe
           { nextKey :: Int
@@ -35,11 +35,11 @@ derive newtype instance eqReleaseKey :: Eq ReleaseKey
 
 derive newtype instance ordReleaseKey :: Ord ReleaseKey
 
-register :: Aff Unit -> ReleaseMap -> Effect ReleaseKey
-register runRelease (ReleaseMap ref) =
+register :: Aff Unit -> Registry -> Effect ReleaseKey
+register runRelease (Registry ref) =
   Ref.read ref
     >>= case _ of
-        Nothing -> throw "Attempting to acquire from closed pool"
+        Nothing -> throw "Attempting to acquire from closed registry"
         Just { nextKey } -> do
           Ref.modify_
             ( map \state ->
@@ -51,8 +51,8 @@ register runRelease (ReleaseMap ref) =
             ref
           pure (ReleaseKey nextKey)
 
-release :: ReleaseKey -> ReleaseMap -> Aff Unit
-release (ReleaseKey key) (ReleaseMap ref) =
+release :: ReleaseKey -> Registry -> Aff Unit
+release (ReleaseKey key) (Registry ref) =
   join
     $ liftEffect
     $ Ref.read ref
@@ -64,26 +64,26 @@ release (ReleaseKey key) (ReleaseMap ref) =
             Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
             pure runRelease
 
-has :: ReleaseKey -> ReleaseMap -> Effect Boolean
-has (ReleaseKey key) (ReleaseMap ref) =
+has :: ReleaseKey -> Registry -> Effect Boolean
+has (ReleaseKey key) (Registry ref) =
   Ref.read ref
     >>= case _ of
         Nothing -> pure false
         Just state -> pure $ Map.member key state.releasers
 
-reference :: ReleaseMap -> Effect Unit
-reference (ReleaseMap ref) = Ref.modify_ (map \s -> s { references = add one s.references }) ref
+reference :: Registry -> Effect Unit
+reference (Registry ref) = Ref.modify_ (map \s -> s { references = add one s.references }) ref
 
-finalize :: ReleaseMap -> Aff Unit
-finalize pool@(ReleaseMap ref) = do
+finalize :: Registry -> Aff Unit
+finalize registry@(Registry ref) = do
   state <- liftEffect $ Ref.modify (map \s -> s { references = sub one s.references }) ref
   case state of
     Just { references }
-      | references == zero -> releaseAll pool
+      | references == zero -> releaseAll registry
     _ -> pure unit
 
-releaseAll :: ReleaseMap -> Aff Unit
-releaseAll (ReleaseMap ref) = tailRecM go []
+releaseAll :: Registry -> Aff Unit
+releaseAll (Registry ref) = tailRecM go []
   where
   go errors =
     extractMostRecent
@@ -108,23 +108,23 @@ releaseAll (ReleaseMap ref) = tailRecM go []
               Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
               pure (Just value)
 
-createEmpty :: Effect ReleaseMap
-createEmpty = ReleaseMap <$> Ref.new initialState
+createEmpty :: Effect Registry
+createEmpty = Registry <$> Ref.new initialState
   where
   initialState = Just { nextKey: 0, references: 1, releasers: Map.empty }
 
-forkAff :: forall a. Aff a -> ReleaseMap -> Effect (Fiber a)
-forkAff aff pool = do
+forkAff :: forall a. Aff a -> Registry -> Effect (Fiber a)
+forkAff aff registry = do
   fiberRef <- Ref.new Nothing
   let
     killFiber =
       liftEffect (Ref.read fiberRef)
         >>= traverse_ (Aff.killFiber (Aff.error "Killed by resource cleanup"))
-  key <- register (killFiber *> finalize pool) pool
+  key <- register (killFiber *> finalize registry) registry
   fiber <-
     Aff.launchAff
-      $ Aff.cancelWith (aff <* release key pool)
-      $ Aff.effectCanceler (Aff.launchAff_ $ release key pool)
+      $ Aff.cancelWith (aff <* release key registry)
+      $ Aff.effectCanceler (Aff.launchAff_ $ release key registry)
   Ref.write (Just fiber) fiberRef
-  reference pool
+  reference registry
   pure fiber
