@@ -1,7 +1,10 @@
 module Control.Monad.Resource.Map where
 
 import Prelude
+import Control.Monad.Error.Class (throwError, try)
 import Control.Monad.Rec.Class (Step(..), tailRecM)
+import Data.Array as Array
+import Data.Either (either)
 import Data.Foldable (traverse_)
 import Data.Map (Map)
 import Data.Map as Map
@@ -80,17 +83,20 @@ finalize pool@(ReleaseMap ref) = do
     _ -> pure unit
 
 releaseAll :: ReleaseMap -> Aff Unit
-releaseAll (ReleaseMap ref) = tailRecM go unit
+releaseAll (ReleaseMap ref) = tailRecM go []
   where
-  go _ = do
+  go errors = do
     mostRecent <- extractMostRecent
     case mostRecent of
       Nothing -> do
         liftEffect $ Ref.write Nothing ref
-        pure (Done unit)
+        traverse_ throwError errors
+        pure $ Done unit
       Just runRelease -> do
-        runRelease
-        pure (Loop unit)
+        errors' <-
+          try runRelease
+            <#> either (Array.snoc errors) (const errors)
+        pure $ Loop errors'
 
   extractMostRecent =
     liftEffect
