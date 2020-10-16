@@ -69,8 +69,6 @@ runResourceT (ResourceT r) = do
 
   cleanup s e = liftEffect (finalizePool s) *> throwError e
 
--- acquire a r = ResourceT \pool -> do
---       key <- newKey pool
 instance functorResourceT :: Monad m => Functor (ResourceT m) where
   map f (ResourceT r) = ResourceT (map f <<< r)
 
