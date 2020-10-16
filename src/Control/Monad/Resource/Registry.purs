@@ -74,8 +74,8 @@ has (ReleaseKey key) (Registry ref) =
         Nothing -> pure false
         Just state -> pure $ Map.member key state.releasers
 
-reference :: Registry -> Effect Unit
-reference (Registry ref) = Ref.modify_ (map \s -> s { references = add one s.references }) ref
+reference :: Registry -> Aff Unit
+reference (Registry ref) = liftEffect $ Ref.modify_ (map \s -> s { references = add one s.references }) ref
 
 finalize :: Registry -> Aff Unit
 finalize registry@(Registry ref) = do
@@ -115,16 +115,10 @@ createEmpty = Registry <$> Ref.new initialState
   where
   initialState = Just { nextKey: 0, references: 1, releasers: Map.empty }
 
-forkAff :: forall a. Aff a -> Registry -> Effect (Fiber a)
+forkAff :: forall a. Aff a -> Registry -> Aff (Fiber a)
 forkAff aff registry = do
   reference registry
-  let
-    runFork = do
-      result <- try aff
-      finalize registry
-      either throwError pure result
-
-    onCancel = Aff.launchAff_ $ finalize registry
-  Aff.launchAff
-    $ Aff.cancelWith runFork
-    $ Aff.effectCanceler onCancel
+  Aff.bracket
+    (Aff.forkAff aff)
+    (\_ -> finalize registry)
+    pure

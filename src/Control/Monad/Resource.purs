@@ -45,7 +45,7 @@ isReleased :: forall m. MonadResource m => ReleaseKey -> m Boolean
 isReleased = map not <<< isRegistered
 
 fork :: forall a m. MonadResource m => ResourceT Aff a -> m (Fiber a)
-fork child = liftResourceT $ ResourceT \registry -> liftEffect $ Registry.forkAff (runResourceT child) registry
+fork child = liftResourceT $ ResourceT \registry -> Registry.forkAff (runResourceT child) registry
 
 forkAff :: forall a m. MonadResource m => Aff a -> m (Fiber a)
-forkAff aff = liftResourceT $ ResourceT \registry -> liftEffect $ Registry.forkAff aff registry
+forkAff aff = liftResourceT $ ResourceT \registry -> Registry.forkAff aff registry
