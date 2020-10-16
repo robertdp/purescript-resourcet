@@ -1,7 +1,18 @@
-module Control.Monad.Resource where
+module Control.Monad.Resource
+  ( ResourceKey
+  , acquire
+  , release
+  , release'
+  , isAcquired
+  , isReleased
+  , module Class
+  , module Trans
+  ) where
 
 import Prelude
 import Control.Monad.Resource.Trans (ResourceT(..))
+import Control.Monad.Resource.Class (class MonadResource, liftResourceT) as Class
+import Control.Monad.Resource.Trans (ResourceT, mapResourceT, runResourceT) as Trans
 import Data.Foldable (for_, traverse_)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
