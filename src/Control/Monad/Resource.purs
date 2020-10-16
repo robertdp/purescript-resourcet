@@ -36,10 +36,10 @@ acquire runAcquire runRelease =
       Ref.read poolRef
         >>= case _ of
             Nothing -> throw "Attempting to acquire from closed pool"
-            Just { fresh } -> do
+            Just { fresh: key } -> do
               resource <- runAcquire
-              Ref.modify_ (map \s -> s { fresh = add one s.fresh, pool = Map.insert fresh (runRelease resource) s.pool }) poolRef
-              pure (Tuple (ResourceKey fresh) resource)
+              Ref.modify_ (map \state -> { fresh: add one state.fresh, pool: Map.insert key (runRelease resource) state.pool }) poolRef
+              pure (Tuple (ResourceKey key) resource)
 
 isAcquired :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
 isAcquired (ResourceKey key) =
@@ -60,7 +60,7 @@ release (ResourceKey key) =
       Ref.read poolRef
         >>= traverse_ \{ pool } ->
             for_ (Map.lookup key pool) \runRelease -> do
-              Ref.modify_ (map \s -> s { pool = Map.delete key s.pool }) poolRef
+              Ref.modify_ (map \state -> state { pool = Map.delete key state.pool }) poolRef
               runRelease
 
 release' :: forall m. MonadEffect m => ResourceKey -> ResourceT m Boolean
