@@ -115,6 +115,7 @@ createEmpty = Registry <$> Ref.new initialState
 
 forkAff :: forall a. Aff a -> Registry -> Effect (Fiber a)
 forkAff aff registry = do
+  reference registry
   fiberRef <- Ref.new Nothing
   let
     killFiber =
@@ -126,5 +127,4 @@ forkAff aff registry = do
       $ Aff.cancelWith (aff <* release key registry)
       $ Aff.effectCanceler (Aff.launchAff_ $ release key registry)
   Ref.write (Just fiber) fiberRef
-  reference registry
   pure fiber
