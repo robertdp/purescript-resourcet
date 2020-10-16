@@ -27,6 +27,9 @@ runResourceT (ResourceT runResource) = do
     cleanup = liftEffect (Pool.finalize pool)
   catchError (runResource pool <* cleanup) (\e -> cleanup *> throwError e)
 
+join :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
+join (ResourceT run) = ResourceT \pool -> case run pool of ResourceT run' -> run' pool
+
 instance functorResourceT :: Monad m => Functor (ResourceT m) where
   map f (ResourceT r) = ResourceT (map f <<< r)
 
