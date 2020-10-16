@@ -10,7 +10,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Effect.Aff (Aff, Fiber)
+import Effect.Aff (Aff, Error, Fiber)
 import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
@@ -93,10 +93,9 @@ releaseAll (ReleaseMap ref) = tailRecM go []
         traverse_ throwError errors
         pure $ Done unit
       Just runRelease -> do
-        errors' <-
-          try runRelease
-            <#> either (Array.snoc errors) (const errors)
-        pure $ Loop errors'
+        Loop
+          <$> either (Array.snoc errors) (const errors)
+          <$> try runRelease
 
   extractMostRecent =
     liftEffect
