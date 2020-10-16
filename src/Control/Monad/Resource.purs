@@ -16,7 +16,6 @@ import Control.Monad.Resource.Pool (ReleaseKey) as Exports
 import Control.Monad.Resource.Pool as Pool
 import Control.Monad.Resource.Trans (ResourceT(..))
 import Control.Monad.Resource.Trans (ResourceT, mapResourceT, runResourceT) as Exports
-import Control.Monad.Trans.Class (lift)
 import Data.Foldable (sequence_)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
@@ -49,13 +48,13 @@ isReleased = map not <<< isRegistered
 
 fork :: forall a m. MonadResource m => ResourceT Aff a -> m (Tuple ReleaseKey (Fiber a))
 fork (ResourceT run) =
-  liftResourceT do
-    canceler <- lift $ Ref.new Nothing
-    key <- register (Ref.read canceler >>= sequence_)
-    fiber <-
-      ResourceT \pool ->
-        Aff.launchAff
-          $ Aff.cancelWith (run pool)
-          $ Aff.effectCanceler (Pool.release key pool)
-    lift $ Ref.write (Just (Aff.launchAff_ (Aff.killFiber (Aff.error "Killed by resource cleanup") fiber))) canceler
-    pure (Tuple key fiber)
+  liftResourceT
+    $ ResourceT \pool -> do
+        canceler <- Ref.new Nothing
+        key <- Pool.register (Ref.read canceler >>= sequence_) pool
+        fiber <-
+          Aff.launchAff
+            $ Aff.cancelWith (run pool)
+            $ Aff.effectCanceler (Pool.release key pool)
+        Ref.write (Just (Aff.launchAff_ (Aff.killFiber (Aff.error "Killed by resource cleanup") fiber))) canceler
+        pure (Tuple key fiber)
