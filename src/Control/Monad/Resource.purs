@@ -16,10 +16,11 @@ import Control.Monad.Resource.Class (class MonadResource, liftResourceT) as Expo
 import Control.Monad.Resource.Registry (ReleaseKey)
 import Control.Monad.Resource.Registry (ReleaseKey) as Exports
 import Control.Monad.Resource.Registry as Registry
-import Control.Monad.Resource.Trans (Resource, ResourceT(..), runResource)
+import Control.Monad.Resource.Trans (Resource, ResourceT(..), mapResourceT, runResource)
 import Control.Monad.Resource.Trans (Resource, ResourceT, mapResourceT, runResource, runResourceT) as Exports
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff, Fiber)
+import Effect.Aff as Aff
 import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 
@@ -49,3 +50,6 @@ fork child = liftResourceT $ ResourceT \registry -> Registry.forkAff (runResourc
 
 forkAff :: forall a m. MonadResource m => Aff a -> m (Fiber a)
 forkAff aff = liftResourceT $ ResourceT \registry -> Registry.forkAff aff registry
+
+supervise :: forall a. Resource a -> Resource a
+supervise = mapResourceT Aff.supervise
