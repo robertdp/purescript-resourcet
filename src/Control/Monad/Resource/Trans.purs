@@ -92,7 +92,7 @@ instance monadAffResourceT :: MonadAff m => MonadAff (ResourceT m) where
   liftAff = lift <<< liftAff
 
 instance monadRecResourceT :: MonadRec m => MonadRec (ResourceT m) where
-  tailRecM k a = ResourceT \registry -> tailRecM (\a' -> case k a' of ResourceT run -> pure =<< run registry) a
+  tailRecM k a = ResourceT \registry -> tailRecM (\a' -> case k a' of ResourceT run -> run registry) a
 
 instance altResourceT :: (Monad m, Alt m) => Alt (ResourceT m) where
   alt (ResourceT run) (ResourceT run') = ResourceT \registry -> alt (run registry) (run' registry)
