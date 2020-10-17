@@ -11,6 +11,7 @@ import Control.Monad.State (class MonadState, state)
 import Control.Monad.Trans.Class (class MonadTrans, lift)
 import Control.Monad.Writer (class MonadTell, class MonadWriter, listen, pass, tell)
 import Control.MonadPlus (class Alt, class Alternative, class MonadPlus, class MonadZero, class Plus, alt, empty)
+import Control.Parallel (class Parallel, parallel, sequential)
 import Effect.Aff (Aff)
 import Effect.Aff as Aff
 import Effect.Aff.Class (class MonadAff, liftAff)
@@ -36,16 +37,16 @@ runResource = runResourceT identity
 flattenResourceT :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
 flattenResourceT (ResourceT run) = ResourceT \registry -> case run registry of ResourceT run' -> run' registry
 
-instance functorResourceT :: Monad m => Functor (ResourceT m) where
+instance functorResourceT :: Functor m => Functor (ResourceT m) where
   map f (ResourceT r) = ResourceT (map f <<< r)
 
-instance applyResourceT :: Monad m => Apply (ResourceT m) where
-  apply = ap
+instance applyResourceT :: Apply m => Apply (ResourceT m) where
+  apply (ResourceT f) (ResourceT a) = ResourceT \r -> apply (f r) (a r)
 
-instance applicativeResourceT :: Monad m => Applicative (ResourceT m) where
+instance applicativeResourceT :: Applicative m => Applicative (ResourceT m) where
   pure a = ResourceT \_ -> pure a
 
-instance bindResourceT :: Monad m => Bind (ResourceT m) where
+instance bindResourceT :: Bind m => Bind (ResourceT m) where
   bind (ResourceT run) f =
     ResourceT \registry -> do
       a <- run registry
@@ -105,3 +106,7 @@ instance alternativeResourceT :: (Monad m, Alternative m) => Alternative (Resour
 instance monadZeroResourceT :: MonadZero m => MonadZero (ResourceT m)
 
 instance monadPlusResourceT :: MonadPlus m => MonadPlus (ResourceT m)
+
+instance parResourceT :: Parallel f m => Parallel (ResourceT f) (ResourceT m) where
+  parallel = mapResourceT parallel
+  sequential = mapResourceT sequential
