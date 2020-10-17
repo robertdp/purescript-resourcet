@@ -1,11 +1,7 @@
 module Control.Monad.Resource.Registry where
 
 import Prelude
-import Control.Monad.Error.Class (throwError)
 import Control.Monad.Rec.Class (Step(..), tailRecM)
-import Data.Array as Array
-import Data.Either (either)
-import Data.Foldable (traverse_)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -83,23 +79,21 @@ cleanup registry@(Registry ref) =
     state <- liftEffect $ Ref.modify (map \s -> s { references = sub one s.references }) ref
     case state of
       Just { references }
-        | references == zero -> releaseAll registry
+        | references == zero -> Aff.supervise $ releaseAll registry
       _ -> pure unit
 
 releaseAll :: Registry -> Aff Unit
-releaseAll (Registry ref) = tailRecM go []
+releaseAll (Registry ref) = tailRecM go unit
   where
-  go errors =
+  go _ =
     liftEffect extractMostRecent
       >>= case _ of
           Nothing -> do
             liftEffect $ Ref.write Nothing ref
-            traverse_ throwError errors
             pure $ Done unit
-          Just runRelease ->
-            Loop
-              <$> either (Array.snoc errors) (const errors)
-              <$> Aff.attempt runRelease
+          Just runRelease -> do
+            _ <- Aff.forkAff runRelease
+            pure $ Loop unit
 
   extractMostRecent =
     Ref.read ref
