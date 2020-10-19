@@ -1,6 +1,7 @@
 module Control.Monad.Resource
   ( register
   , acquire
+  , deregister
   , release
   , release'
   , isRegistered
@@ -32,6 +33,9 @@ acquire runAcquire runRelease = do
   resource <- liftAff runAcquire
   key <- register (runRelease resource)
   pure (Tuple key resource)
+
+deregister :: forall m. MonadResource m => ReleaseKey -> m Unit
+deregister key = liftResourceT $ ResourceT \registry -> liftEffect $ Registry.deregister key registry
 
 release :: forall m. MonadResource m => ReleaseKey -> m Unit
 release = liftResourceT <<< ResourceT <<< Registry.release
