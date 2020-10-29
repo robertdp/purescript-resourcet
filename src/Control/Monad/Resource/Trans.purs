@@ -26,10 +26,10 @@ type Resource
 mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' b
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
-runResourceT :: forall m a. MonadAff m => (m a -> Aff a) -> ResourceT m a -> Aff a
-runResourceT runM (ResourceT run) = do
+runResourceT :: forall m a. MonadAff m => m ~> Aff -> ResourceT m a -> Aff a
+runResourceT nat (ResourceT run) = do
   registry <- liftEffect Registry.createEmpty
-  Aff.bracket (runM $ run registry) (\_ -> Registry.cleanup registry) pure
+  Aff.finally (Registry.cleanup registry) (nat (run registry))
 
 runResource :: forall a. Resource a -> Aff a
 runResource = runResourceT identity

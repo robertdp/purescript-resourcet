@@ -113,7 +113,4 @@ createEmpty = Registry <$> Ref.new initialState
 forkAff :: forall a. Aff a -> Registry -> Aff (Fiber a)
 forkAff aff registry = do
   reference registry
-  Aff.bracket
-    (Aff.forkAff aff)
-    (\_ -> cleanup registry)
-    pure
+  Aff.finally (cleanup registry) (Aff.forkAff aff)
