@@ -3,12 +3,10 @@ module Control.Monad.Resource.Aff.Pool where
 import Prelude
 import Control.Monad.Resource (class MonadResource)
 import Control.Monad.Resource as Resource
-import Data.Either (either)
 import Data.Foldable (traverse_)
 import Data.Map (Map)
 import Data.Map as Map
-import Effect (Effect)
-import Effect.Aff (Aff, Fiber, throwError)
+import Effect.Aff (Aff, Fiber)
 import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
@@ -28,15 +26,11 @@ create = do
       fibers <- Ref.new Map.empty
       in { fresh, fibers }
   let
-    cleanup =
-      liftEffect do
-        fibers <- Ref.modify' (\s -> { state: Map.empty, value: s }) pool.fibers
-        traverse_ killFiber fibers
+    cleanup = do
+      fibers <- liftEffect $ Ref.modify' (\s -> { state: Map.empty, value: s }) pool.fibers
+      traverse_ (Aff.killFiber (Aff.error "Cancelling")) fibers
   _ <- Resource.register cleanup
   pure (Pool pool)
-
-killFiber :: forall a. Fiber a -> Effect Unit
-killFiber fiber = Aff.runAff_ (either throwError pure) (Aff.killFiber (Aff.error "Cancelling") fiber)
 
 run :: forall a. Pool -> Aff a -> Aff a
 run (Pool pool) aff = do
