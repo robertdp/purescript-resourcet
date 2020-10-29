@@ -14,9 +14,9 @@ module Control.Monad.Resource
 import Prelude
 import Control.Monad.Resource.Class (class MonadResource, liftResourceT)
 import Control.Monad.Resource.Class (class MonadResource, liftResourceT) as Exports
-import Control.Monad.Resource.Registry (ReleaseKey)
-import Control.Monad.Resource.Registry (ReleaseKey) as Exports
-import Control.Monad.Resource.Registry as Registry
+import Control.Monad.Resource.Internal.Registry (ReleaseKey)
+import Control.Monad.Resource.Internal.Registry (ReleaseKey) as Exports
+import Control.Monad.Resource.Internal.Registry as Registry
 import Control.Monad.Resource.Trans (Resource, ResourceT(..), mapResourceT, runResource)
 import Control.Monad.Resource.Trans (Resource, ResourceT, mapResourceT, runResource, runResourceT) as Exports
 import Data.Tuple (Tuple(..))

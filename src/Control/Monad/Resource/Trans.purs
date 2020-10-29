@@ -5,8 +5,8 @@ import Control.Monad.Cont (class MonadCont, callCC)
 import Control.Monad.Error.Class (class MonadError, class MonadThrow, catchError, throwError)
 import Control.Monad.Reader (class MonadAsk, class MonadReader, ask, local)
 import Control.Monad.Rec.Class (class MonadRec, tailRecM)
-import Control.Monad.Resource.Registry (Registry)
-import Control.Monad.Resource.Registry as Registry
+import Control.Monad.Resource.Internal.Registry (Registry)
+import Control.Monad.Resource.Internal.Registry as Registry
 import Control.Monad.State (class MonadState, state)
 import Control.Monad.Trans.Class (class MonadTrans, lift)
 import Control.Monad.Writer (class MonadTell, class MonadWriter, listen, pass, tell)

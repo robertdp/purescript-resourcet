@@ -1,4 +1,4 @@
-module Control.Monad.Resource.Registry where
+module Control.Monad.Resource.Internal.Registry where
 
 import Prelude
 import Control.Monad.Rec.Class (Step(..), tailRecM)
