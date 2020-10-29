@@ -49,16 +49,15 @@ register runRelease (Registry ref) =
 
 release :: ReleaseKey -> Registry -> Aff Unit
 release (ReleaseKey key) (Registry ref) =
-  join
-    $ liftEffect
-    $ Ref.read ref
-    >>= case _ of
-        Nothing -> mempty
-        Just { releasers } -> case Map.lookup key releasers of
+  (join <<< liftEffect) do
+    Ref.read ref
+      >>= case _ of
           Nothing -> mempty
-          Just runRelease -> do
-            Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
-            pure runRelease
+          Just { releasers } -> case Map.lookup key releasers of
+            Nothing -> mempty
+            Just runRelease -> do
+              Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
+              pure runRelease
 
 deregister :: ReleaseKey -> Registry -> Effect Unit
 deregister (ReleaseKey key) (Registry ref) = Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref

@@ -3,6 +3,7 @@ module Control.Monad.Resource.Trans where
 import Prelude
 import Control.Monad.Cont (class MonadCont, callCC)
 import Control.Monad.Error.Class (class MonadError, class MonadThrow, catchError, throwError)
+import Control.Monad.Fork.Class (class MonadBracket, bracket, uninterruptible)
 import Control.Monad.Reader (class MonadAsk, class MonadReader, ask, local)
 import Control.Monad.Rec.Class (class MonadRec, tailRecM)
 import Control.Monad.Resource.Registry (Registry)
@@ -26,7 +27,7 @@ type Resource
 mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' b
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
-runResourceT :: forall m a. MonadAff m => m ~> Aff -> ResourceT m a -> Aff a
+runResourceT :: forall m a b. (m a -> Aff b) -> ResourceT m a -> Aff b
 runResourceT nat (ResourceT run) = do
   registry <- liftEffect Registry.createEmpty
   Aff.finally (Registry.cleanup registry) (nat (run registry))
@@ -34,7 +35,7 @@ runResourceT nat (ResourceT run) = do
 runResource :: forall a. Resource a -> Aff a
 runResource = runResourceT identity
 
-flattenResourceT :: forall a m. ResourceT (ResourceT m) a -> ResourceT m a
+flattenResourceT :: forall m a. ResourceT (ResourceT m) a -> ResourceT m a
 flattenResourceT (ResourceT run) = ResourceT \registry -> case run registry of ResourceT run' -> run' registry
 
 instance functorResourceT :: Functor m => Functor (ResourceT m) where
