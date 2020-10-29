@@ -3,7 +3,6 @@ module Control.Monad.Resource.Trans where
 import Prelude
 import Control.Monad.Cont (class MonadCont, callCC)
 import Control.Monad.Error.Class (class MonadError, class MonadThrow, catchError, throwError)
-import Control.Monad.Fork.Class (class MonadBracket, bracket, uninterruptible)
 import Control.Monad.Reader (class MonadAsk, class MonadReader, ask, local)
 import Control.Monad.Rec.Class (class MonadRec, tailRecM)
 import Control.Monad.Resource.Registry (Registry)
