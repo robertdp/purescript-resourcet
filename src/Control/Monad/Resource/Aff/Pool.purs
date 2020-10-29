@@ -27,7 +27,7 @@ create = do
       in { fresh, fibers }
   let
     cleanup = do
-      fibers <- liftEffect $ Ref.modify' (\s -> { state: Map.empty, value: s }) pool.fibers
+      fibers <- liftEffect $ Ref.modify' (\fibers -> { state: Map.empty, value: fibers }) pool.fibers
       traverse_ (Aff.killFiber (Aff.error "Cancelling")) fibers
   _ <- Resource.register cleanup
   pure (Pool pool)
