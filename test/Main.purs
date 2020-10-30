@@ -79,7 +79,7 @@ main =
                 resource.expect.released []
             resource.expect.pending []
             resource.expect.released [ Three, One, Two ]
-          it "should wait for forks to resolve before releasing" do
+          it "should wait for forks to resolve before freeing resources" do
             resource <- makeResource
             Resource.runResource do
               _ <- resource.register One
