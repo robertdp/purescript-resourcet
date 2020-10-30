@@ -4,7 +4,7 @@ You can edit this file as you like.
 -}
 { name = "resourcet"
 , dependencies =
-  [ "aff", "fork", "ordered-collections", "refs", "transformers" ]
+  [ "aff", "ordered-collections", "refs", "transformers" ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
 }
