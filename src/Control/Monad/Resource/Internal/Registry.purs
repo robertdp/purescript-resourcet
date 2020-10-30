@@ -70,12 +70,12 @@ has (ReleaseKey key) (Registry ref) =
         Just state -> pure $ Map.member key state.releasers
 
 reference :: Registry -> Aff Unit
-reference (Registry ref) = liftEffect $ Ref.modify_ (map \s -> s { references = add one s.references }) ref
+reference (Registry ref) = liftEffect $ Ref.modify_ (map \s -> s { references = s.references + one }) ref
 
 cleanup :: Registry -> Aff Unit
 cleanup registry@(Registry ref) =
   Aff.invincible do
-    state <- liftEffect $ Ref.modify (map \s -> s { references = sub one s.references }) ref
+    state <- liftEffect $ Ref.modify (map \s -> s { references = s.references - one }) ref
     case state of
       Just { references }
         | references == zero -> Aff.supervise $ releaseAll registry
@@ -112,4 +112,4 @@ createEmpty = Registry <$> Ref.new initialState
 forkAff :: forall a. Aff a -> Registry -> Aff (Fiber a)
 forkAff aff registry = do
   reference registry
-  Aff.finally (cleanup registry) (Aff.forkAff aff)
+  Aff.forkAff $ Aff.finally (cleanup registry) aff
