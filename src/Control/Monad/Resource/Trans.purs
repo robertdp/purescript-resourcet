@@ -24,7 +24,7 @@ import Effect.Class (class MonadEffect, liftEffect)
 newtype ResourceT m a
   = ResourceT (Registry -> m a)
 
--- | The `Resource` monad is a synonym for `ReaderT Aff`.
+-- | The `Resource` monad is a synonym for `ResourceT Aff`.
 type Resource
   = ResourceT Aff
 

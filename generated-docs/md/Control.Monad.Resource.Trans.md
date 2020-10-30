@@ -45,7 +45,7 @@ MonadTrans ResourceT
 type Resource = ResourceT Aff
 ```
 
-The `Resource` monad is a synonym for `ReaderT Aff`.
+The `Resource` monad is a synonym for `ResourceT Aff`.
 
 #### `mapResourceT`
 
