@@ -45,7 +45,7 @@ main =
                 resource.expect.released []
             resource.expect.pending []
             resource.expect.released [ Three, Two, One ]
-          it "doesn't release manually released resources" do
+          it "doesn't re-release manually freed resources" do
             resource <- makeResource
             Resource.runResource do
               _ <- resource.register One
