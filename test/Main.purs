@@ -60,7 +60,7 @@ main =
                 resource.expect.released [ Two ]
             resource.expect.pending []
             resource.expect.released [ Two, Three, One ]
-          it "should handle parallel resource acquisition" do
+          it "handles parallel resource acquisition" do
             resource <- makeResource
             Resource.runResource do
               sequential ado
@@ -79,17 +79,21 @@ main =
                 resource.expect.released []
             resource.expect.pending []
             resource.expect.released [ Three, One, Two ]
-          it "should wait for forks to resolve before freeing resources" do
+          it "waits for all forks to resolve before freeing resources" do
             resource <- makeResource
             Resource.runResource do
               _ <- resource.register One
+              _ <- Resource.forkAff $ delay $ Milliseconds 200.0
               _ <- Resource.forkAff $ delay $ Milliseconds 500.0
               liftAff do
                 resource.expect.pending [ Tuple 0 One ]
                 resource.expect.released []
             resource.expect.pending [ Tuple 0 One ]
             resource.expect.released []
-            delay $ Milliseconds 600.0
+            delay $ Milliseconds 250.0
+            resource.expect.pending [ Tuple 0 One ]
+            resource.expect.released []
+            delay $ Milliseconds 300.0
             resource.expect.pending []
             resource.expect.released [ One ]
 
