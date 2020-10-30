@@ -81,27 +81,45 @@ main =
             resource.expect.released [ Three, One, Two ]
           it "waits for all forks to resolve before freeing resources" do
             resource <- makeResource
+            fork1 <- makeResource
+            fork2 <- makeResource
             Resource.runResource do
               _ <- resource.register One
               _ <-
                 Resource.fork do
                   liftAff $ delay $ Milliseconds 200.0
-                  resource.register Two
+                  fork1.register Two
               _ <-
                 Resource.fork do
-                  _ <- resource.register Three
+                  _ <- fork2.register Three
                   liftAff $ delay $ Milliseconds 500.0
               liftAff do
-                resource.expect.pending [ Tuple 0 One, Tuple 1 Three ]
+                resource.expect.pending [ Tuple 0 One ]
                 resource.expect.released []
-            resource.expect.pending [ Tuple 0 One, Tuple 1 Three ]
+                fork1.expect.pending []
+                fork1.expect.released []
+                fork2.expect.pending [ Tuple 0 Three ]
+                fork2.expect.released []
+            resource.expect.pending [ Tuple 0 One ]
             resource.expect.released []
+            fork1.expect.pending []
+            fork1.expect.released []
+            fork2.expect.pending [ Tuple 0 Three ]
+            fork2.expect.released []
             delay $ Milliseconds 250.0
-            resource.expect.pending [ Tuple 0 One, Tuple 1 Three, Tuple 2 Two ]
+            resource.expect.pending [ Tuple 0 One ]
             resource.expect.released []
+            fork1.expect.pending []
+            fork1.expect.released [ Two ]
+            fork2.expect.pending [ Tuple 0 Three ]
+            fork2.expect.released []
             delay $ Milliseconds 300.0
             resource.expect.pending []
-            resource.expect.released [ Two, Three, One ]
+            resource.expect.released [ One ]
+            fork1.expect.pending []
+            fork1.expect.released [ Two ]
+            fork2.expect.pending []
+            fork2.expect.released [ Three ]
 
 makeResource ::
   forall m.

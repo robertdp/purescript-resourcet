@@ -17,7 +17,7 @@ import Control.Monad.Resource.Class (class MonadResource, liftResourceT) as Expo
 import Control.Monad.Resource.Internal.Registry (ReleaseKey)
 import Control.Monad.Resource.Internal.Registry (ReleaseKey) as Exports
 import Control.Monad.Resource.Internal.Registry as Registry
-import Control.Monad.Resource.Trans (Resource, ResourceT(..), mapResourceT)
+import Control.Monad.Resource.Trans (Resource, ResourceT(..), mapResourceT, runResource)
 import Control.Monad.Resource.Trans (Resource, ResourceT, mapResourceT, runResource, runResourceT) as Exports
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff, Fiber)
@@ -50,7 +50,7 @@ isReleased :: forall m. MonadResource m => ReleaseKey -> m Boolean
 isReleased = map not <<< isRegistered
 
 fork :: forall a m. MonadResource m => Resource a -> m (Fiber a)
-fork (ResourceT child) = liftResourceT $ ResourceT \registry -> Registry.forkAff (child registry) registry
+fork child = liftResourceT $ ResourceT \registry -> Registry.forkAff (runResource child) registry
 
 forkAff :: forall a m. MonadResource m => Aff a -> m (Fiber a)
 forkAff aff = liftResourceT $ ResourceT \registry -> Registry.forkAff aff registry
