@@ -70,6 +70,12 @@ fork :: forall a m. MonadResource m => Resource a -> m (Fiber a)
 forkAff :: forall a m. MonadResource m => Aff a -> m (Fiber a)
 ```
 
+#### `supervise`
+
+``` purescript
+supervise :: forall a. Resource a -> Resource a
+```
+
 
 ### Re-exported from Control.Monad.Resource.Class:
 

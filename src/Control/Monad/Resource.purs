@@ -8,6 +8,7 @@ module Control.Monad.Resource
   , isReleased
   , fork
   , forkAff
+  , supervise
   , module Exports
   ) where
 
