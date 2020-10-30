@@ -10,6 +10,7 @@ import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
 
+-- | Create a function that will track all running Aff fibers and kill them in the resource cleanup.
 create :: forall m a. MonadResource m => m (Aff a -> Aff a)
 create = do
   pool <-

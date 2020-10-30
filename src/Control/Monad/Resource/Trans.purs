@@ -17,23 +17,32 @@ import Effect.Aff as Aff
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 
+-- | The resource cleanup monad transformer.
+-- |
+-- | This monad transformer extends the base monad with a mutable registry for tracking resource cleanup actions.
+-- | At the end of evaluation all remaining cleanup actions are executed.
 newtype ResourceT m a
   = ResourceT (Registry -> m a)
 
+-- | The `Resource` monad is a synonym for `ReaderT Aff`.
 type Resource
   = ResourceT Aff
 
+-- | Change the type of the result in a `ResourceT` monad action.
 mapResourceT :: forall m m' a b. (m a -> m' b) -> ResourceT m a -> ResourceT m' b
 mapResourceT f (ResourceT r) = ResourceT (f <<< r)
 
+-- | Run a computation in the `ResourceT` monad, while changing it to `Aff` to ensure the cleanup will run safely.
 runResourceT :: forall m a b. (m a -> Aff b) -> ResourceT m a -> Aff b
 runResourceT nat (ResourceT run) = do
   registry <- liftEffect Registry.createEmpty
   Aff.finally (Registry.cleanup registry) (nat (run registry))
 
+-- | Run an `Aff` computation in the `ResourceT` monad.
 runResource :: forall a. Resource a -> Aff a
 runResource = runResourceT identity
 
+-- | Combine two levels of `ResourceT` into one, so that they also share the same cleanup store.
 flattenResourceT :: forall m a. ResourceT (ResourceT m) a -> ResourceT m a
 flattenResourceT (ResourceT run) = ResourceT \registry -> case run registry of ResourceT run' -> run' registry
 
