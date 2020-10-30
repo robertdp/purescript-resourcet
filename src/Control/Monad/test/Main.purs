@@ -1,0 +1,91 @@
+module Test.Main where
+
+import Prelude
+import Control.Monad.Resource (class MonadResource, ReleaseKey)
+import Control.Monad.Resource as Resource
+import Data.Array as Array
+import Data.Map as Map
+import Data.Tuple (Tuple(..))
+import Effect (Effect)
+import Effect.Aff (Aff, launchAff_)
+import Effect.Aff.Class (liftAff)
+import Effect.Class (liftEffect)
+import Effect.Ref as Ref
+import Test.Spec (describe, it)
+import Test.Spec.Assertions (shouldEqual)
+import Test.Spec.Reporter (consoleReporter)
+import Test.Spec.Runner (runSpec)
+
+data Token
+  = One
+  | Two
+  | Three
+
+derive instance eqToken :: Eq Token
+
+instance showToken :: Show Token where
+  show = case _ of
+    One -> "One"
+    Two -> "Two"
+    Three -> "Three"
+
+main :: Effect Unit
+main =
+  launchAff_
+    $ runSpec [ consoleReporter ] do
+        describe "purescript-resourcet" do
+          it "registers and releases resources in the expected order" do
+            resource <- makeResource
+            Resource.runResource do
+              _ <- resource.register One
+              _ <- resource.register Two
+              _ <- resource.register Three
+              liftAff do
+                resource.expect.pending [ Tuple 0 One, Tuple 1 Two, Tuple 2 Three ]
+                resource.expect.released []
+            resource.expect.pending []
+            resource.expect.released [ Three, Two, One ]
+          it "doesn't release manually released resources" do
+            resource <- makeResource
+            Resource.runResource do
+              _ <- resource.register One
+              key <- resource.register Two
+              _ <- resource.register Three
+              liftAff do
+                resource.expect.pending [ Tuple 0 One, Tuple 1 Two, Tuple 2 Three ]
+                resource.expect.released []
+              Resource.release key
+              liftAff do
+                resource.expect.pending [ Tuple 0 One, Tuple 2 Three ]
+                resource.expect.released [ Two ]
+            resource.expect.pending []
+            resource.expect.released [ Two, Three, One ]
+
+makeResource ::
+  forall m.
+  MonadResource m =>
+  Aff
+    { expect ::
+        { pending :: Array (Tuple Int Token) -> Aff Unit
+        , released :: Array Token -> Aff Unit
+        }
+    , register :: Token -> m ReleaseKey
+    }
+makeResource =
+  liftEffect do
+    nextId <- Ref.new 0
+    pending <- Ref.new Map.empty
+    released <- Ref.new []
+    let
+      register token = do
+        id <- liftEffect $ Ref.modify' (\s -> { state: s + 1, value: s }) nextId
+        liftEffect $ Ref.modify_ (Map.insert id token) pending
+        (Resource.register <<< liftEffect) do
+          Ref.modify_ (Map.delete id) pending
+          Ref.modify_ (flip Array.snoc token) released
+
+      expect =
+        { pending: \tokens -> liftEffect (Ref.read pending) >>= shouldEqual (Map.fromFoldable tokens)
+        , released: \tokens -> liftEffect (Ref.read released) >>= shouldEqual tokens
+        }
+    pure { register, expect }
