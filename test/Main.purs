@@ -83,19 +83,25 @@ main =
             resource <- makeResource
             Resource.runResource do
               _ <- resource.register One
-              _ <- Resource.forkAff $ delay $ Milliseconds 200.0
-              _ <- Resource.forkAff $ delay $ Milliseconds 500.0
+              _ <-
+                Resource.fork do
+                  liftAff $ delay $ Milliseconds 200.0
+                  resource.register Two
+              _ <-
+                Resource.fork do
+                  _ <- resource.register Three
+                  liftAff $ delay $ Milliseconds 500.0
               liftAff do
-                resource.expect.pending [ Tuple 0 One ]
+                resource.expect.pending [ Tuple 0 One, Tuple 1 Three ]
                 resource.expect.released []
-            resource.expect.pending [ Tuple 0 One ]
+            resource.expect.pending [ Tuple 0 One, Tuple 1 Three ]
             resource.expect.released []
             delay $ Milliseconds 250.0
-            resource.expect.pending [ Tuple 0 One ]
+            resource.expect.pending [ Tuple 0 One, Tuple 1 Three, Tuple 2 Two ]
             resource.expect.released []
             delay $ Milliseconds 300.0
             resource.expect.pending []
-            resource.expect.released [ One ]
+            resource.expect.released [ Two, Three, One ]
 
 makeResource ::
   forall m.
