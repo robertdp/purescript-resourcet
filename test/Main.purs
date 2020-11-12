@@ -128,7 +128,7 @@ main =
                   delay $ Milliseconds 50.0
                   liftEffect $ Ref.write true finishedRelease
               throwError (error "failing") $> unit
-            delay $ Milliseconds 700.0
+            delay $ Milliseconds 70.0
             wasSuccessful <- liftEffect $ Ref.read finishedRelease
             wasSuccessful `shouldEqual` true
           it "performs async cleanup when the fiber is killed" do
