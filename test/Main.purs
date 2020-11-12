@@ -7,7 +7,7 @@ import Data.Array as Array
 import Data.Map as Map
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Aff (Aff, Milliseconds(..), delay, launchAff_, parallel, sequential)
+import Effect.Aff (Aff, Milliseconds(..), attempt, delay, error, launchAff_, parallel, sequential, throwError)
 import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
@@ -120,6 +120,17 @@ main =
             fork1.expect.released [ Two ]
             fork2.expect.pending []
             fork2.expect.released [ Three ]
+          it "does not error when the cleanup outlives the parent" do
+            cleanedUp <- liftEffect $ Ref.new false
+            (liftEffect <<< launchAff_ <<< attempt <<< Resource.runResource) do
+              _ <-
+                Resource.register do
+                  delay $ Milliseconds 50.0
+                  liftEffect $ Ref.write true cleanedUp
+              throwError (error "failing") $> unit
+            delay $ Milliseconds 150.0
+            isClean <- liftEffect $ Ref.read cleanedUp
+            isClean `shouldEqual` true
 
 makeResource ::
   forall m.

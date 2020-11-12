@@ -91,7 +91,7 @@ releaseAll (Registry ref) = tailRecM go unit
             liftEffect $ Ref.write Nothing ref
             pure $ Done unit
           Just runRelease -> do
-            _ <- Aff.forkAff runRelease
+            _ <- Aff.attempt runRelease
             pure $ Loop unit
 
   extractMostRecent =

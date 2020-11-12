@@ -38,16 +38,16 @@ acquire runAcquire runRelease = do
   key <- register (runRelease resource)
   pure (Tuple key resource)
 
--- | Remove the release action associated with the key. This will
+-- | Remove the release action associated with the key.
 deregister :: forall m. MonadResource m => ReleaseKey -> m Unit
 deregister key = liftResourceT $ ResourceT \registry -> liftEffect $ Registry.deregister key registry
 
--- | Trigger the release action for this `ReleaseKey` if it is registered.
+-- | Trigger the release action for the `ReleaseKey` if it is registered.
 release :: forall m. MonadResource m => ReleaseKey -> m Unit
 release = liftResourceT <<< ResourceT <<< Registry.release
 
--- | Trigger the release action for this `ReleaseKey` if it is registered. Returns `true` if the key was found and the
--- | action run, `false` otherwise.
+-- | Trigger the release action for the `ReleaseKey` if it is registered. Returns `true` if the key was found,
+-- | `false` otherwise.
 release' :: forall m. MonadResource m => ReleaseKey -> m Boolean
 release' key = isRegistered key <* release key
 
