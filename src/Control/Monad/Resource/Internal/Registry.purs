@@ -2,11 +2,14 @@ module Control.Monad.Resource.Internal.Registry where
 
 import Prelude
 import Control.Monad.Rec.Class (Step(..), tailRecM)
+import Data.Either (either)
+import Data.Foldable (traverse_)
+import Data.List (List(..), reverse, (:))
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Effect.Aff (Aff, Fiber)
+import Effect.Aff (Aff, Error, Fiber, throwError)
 import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
@@ -78,21 +81,21 @@ cleanup registry@(Registry ref) =
     state <- liftEffect $ Ref.modify (map \s -> s { references = s.references - one }) ref
     case state of
       Just { references }
-        | references == zero -> Aff.supervise $ releaseAll registry
+        | references == zero -> releaseAll registry >>= traverse_ throwError
       _ -> pure unit
 
-releaseAll :: Registry -> Aff Unit
-releaseAll (Registry ref) = tailRecM go unit
+releaseAll :: Registry -> Aff (List Error)
+releaseAll (Registry ref) = reverse <$> tailRecM go Nil
   where
-  go _ =
+  go errors =
     liftEffect extractMostRecent
       >>= case _ of
           Nothing -> do
             liftEffect $ Ref.write Nothing ref
-            pure $ Done unit
+            pure $ Done errors
           Just runRelease -> do
-            _ <- Aff.attempt runRelease
-            pure $ Loop unit
+            result <- Aff.attempt runRelease
+            pure $ Loop $ either (_ : errors) (const errors) result
 
   extractMostRecent =
     Ref.read ref
