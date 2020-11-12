@@ -5,7 +5,7 @@ import Control.Monad.Resource (class MonadResource)
 import Control.Monad.Resource as Resource
 import Data.Foldable (traverse_)
 import Data.Map as Map
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, throwError)
 import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
@@ -15,15 +15,19 @@ create :: forall m a. MonadResource m => m (Aff a -> Aff a)
 create = do
   pool <-
     liftEffect ado
-      fresh <- Ref.new 0
+      closed <- Ref.new false
       fibers <- Ref.new Map.empty
-      in { fresh, fibers }
+      fresh <- Ref.new 0
+      in { closed, fibers, fresh }
   let
     cleanup = do
       fibers <- liftEffect $ Ref.modify' (\fibers -> { state: Map.empty, value: fibers }) pool.fibers
       traverse_ (Aff.killFiber (Aff.error "Cancelling")) fibers
+  _ <- Resource.register $ liftEffect $ Ref.write true pool.closed
   _ <- Resource.register cleanup
   pure \aff -> do
+    whenM (liftEffect $ Ref.read pool.closed) do
+      throwError (Aff.error "Pool has been closed, cannot track new fibers")
     fiber <-
       liftEffect do
         id <- Ref.modify' (\fresh -> { state: fresh + 1, value: fresh }) pool.fresh
