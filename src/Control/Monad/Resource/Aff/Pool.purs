@@ -27,19 +27,18 @@ create = do
   pure \aff -> do
     whenM (liftEffect $ Ref.read pool.closed) do
       throwError (Aff.error "Pool has been closed, cannot track new fibers")
-    fiber <-
-      liftEffect do
-        id <- Ref.modify' (\fresh -> { state: fresh + 1, value: fresh }) pool.fresh
-        doneRef <- Ref.new false
-        fiber <-
-          Aff.launchAff
-            $ Aff.finally
-                ( liftEffect do
-                    Ref.modify_ (Map.delete id) pool.fibers
-                    Ref.write true doneRef
-                )
-                aff
-        unlessM (Ref.read doneRef) do
-          Ref.modify_ (Map.insert id (void fiber)) pool.fibers
-        pure fiber
-    Aff.joinFiber fiber
+    Aff.joinFiber
+      =<< liftEffect do
+          id <- Ref.modify' (\fresh -> { state: fresh + 1, value: fresh }) pool.fresh
+          doneRef <- Ref.new false
+          fiber <-
+            Aff.launchAff
+              $ Aff.finally
+                  ( liftEffect do
+                      Ref.modify_ (Map.delete id) pool.fibers
+                      Ref.write true doneRef
+                  )
+                  aff
+          unlessM (Ref.read doneRef) do
+            Ref.modify_ (Map.insert id (void fiber)) pool.fibers
+          pure fiber
