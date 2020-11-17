@@ -19,12 +19,11 @@ create = do
       fibers <- Ref.new Map.empty
       fresh <- Ref.new 0
       in { closed, fibers, fresh }
-  let
-    cleanup = do
+  _ <-
+    Resource.register do
+      liftEffect $ Ref.write true pool.closed
       fibers <- liftEffect $ Ref.modify' (\fibers -> { state: Map.empty, value: fibers }) pool.fibers
       traverse_ (Aff.killFiber (Aff.error "Cancelling")) fibers
-  _ <- Resource.register cleanup
-  _ <- Resource.register $ liftEffect $ Ref.write true pool.closed
   pure \aff -> do
     whenM (liftEffect $ Ref.read pool.closed) do
       throwError (Aff.error "Pool has been closed, cannot track new fibers")
