@@ -23,7 +23,7 @@ return the resource and the action's `ReleaseKey`
 deregister :: forall m. MonadResource m => ReleaseKey -> m Unit
 ```
 
-Remove the release action associated with the key. This will
+Remove the release action associated with the key.
 
 #### `release`
 
@@ -31,7 +31,7 @@ Remove the release action associated with the key. This will
 release :: forall m. MonadResource m => ReleaseKey -> m Unit
 ```
 
-Trigger the release action for this `ReleaseKey` if it is registered.
+Trigger the release action for the `ReleaseKey` if it is registered.
 
 #### `release'`
 
@@ -39,8 +39,8 @@ Trigger the release action for this `ReleaseKey` if it is registered.
 release' :: forall m. MonadResource m => ReleaseKey -> m Boolean
 ```
 
-Trigger the release action for this `ReleaseKey` if it is registered. Returns `true` if the key was found and the
-action run, `false` otherwise.
+Trigger the release action for the `ReleaseKey` if it is registered. Returns `true` if the key was found,
+`false` otherwise.
 
 #### `isRegistered`
 

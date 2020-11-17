@@ -59,7 +59,7 @@ cleanup :: Registry -> Aff Unit
 #### `releaseAll`
 
 ``` purescript
-releaseAll :: Registry -> Aff Unit
+releaseAll :: Registry -> Aff (List Error)
 ```
 
 #### `createEmpty`
