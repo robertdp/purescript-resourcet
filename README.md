@@ -1,6 +1,6 @@
 # ResourceT: Safe allocation and freeing of resources
 
-`ResourceT` is a monad transformer that creates a region of code where you can safely allocate resources. These resources can then be freed manually on demand, or automatically at when either execution reaches the end of the region or an unrecovered error occurs within the region.
+`ResourceT` is a monad transformer that creates a region of code where you can safely allocate resources. These resources can then be freed manually on demand, or automatically when execution reaches the end of the region or when an unrecovered error occurs within the region.
 
 ## Is this like `Aff.bracket`?
 
