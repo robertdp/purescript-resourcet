@@ -71,12 +71,13 @@ runResource :: forall a. Resource a -> Aff a
 
 Run an `Aff` computation in the `ResourceT` monad.
 
-#### `flattenResourceT`
+#### `joinResourceT`
 
 ``` purescript
-flattenResourceT :: forall m a. ResourceT (ResourceT m) a -> ResourceT m a
+joinResourceT :: forall m a. ResourceT (ResourceT m) a -> ResourceT m a
 ```
 
-Combine two levels of `ResourceT` into one, so that they also share the same cleanup store.
+This function mirrors `join` at the transformer level: it will collapse two levels of `ResourceT` into a single
+`ResourceT`.
 
 

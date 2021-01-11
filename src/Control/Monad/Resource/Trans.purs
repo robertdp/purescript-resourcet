@@ -42,9 +42,10 @@ runResourceT nat (ResourceT run) = do
 runResource :: forall a. Resource a -> Aff a
 runResource = runResourceT identity
 
--- | Combine two levels of `ResourceT` into one, so that they also share the same cleanup store.
-flattenResourceT :: forall m a. ResourceT (ResourceT m) a -> ResourceT m a
-flattenResourceT (ResourceT run) = ResourceT \registry -> case run registry of ResourceT run' -> run' registry
+-- | This function mirrors `join` at the transformer level: it will collapse two levels of `ResourceT` into a single
+-- | `ResourceT`.
+joinResourceT :: forall m a. ResourceT (ResourceT m) a -> ResourceT m a
+joinResourceT (ResourceT run) = ResourceT \registry -> case run registry of ResourceT run' -> run' registry
 
 instance functorResourceT :: Functor m => Functor (ResourceT m) where
   map f (ResourceT r) = ResourceT (map f <<< r)
