@@ -1,5 +1,9 @@
 {
   "name": "purescript-resourcet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/robertdp/purescript-resourcet.git"
+  },
   "description": "",
   "main": "index.js",
   "authors": [
