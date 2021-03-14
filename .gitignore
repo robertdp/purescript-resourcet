@@ -2,10 +2,7 @@
 /node_modules/
 /.pulp-cache/
 /output/
-/generated-docs/*
-!/generated-docs/md
-/generated-docs/md/*
-!/generated-docs/md/Control.Monad.Resource.*
+/generated-docs/
 /.psc-package/
 /.psc*
 /.purs*
