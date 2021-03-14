@@ -4,7 +4,17 @@ You can edit this file as you like.
 -}
 { name = "resourcet"
 , dependencies =
-  [ "aff", "ordered-collections", "refs", "transformers" ]
+  [ "aff"
+  , "effect"
+  , "foldable-traversable"
+  , "maybe"
+  , "ordered-collections"
+  , "parallel"
+  , "refs"
+  , "tailrec"
+  , "transformers"
+  , "tuples"
+  ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs" ]
 }
