@@ -10,7 +10,7 @@ import Control.Monad.Resource.Internal.Registry as Registry
 import Control.Monad.State (class MonadState, state)
 import Control.Monad.Trans.Class (class MonadTrans, lift)
 import Control.Monad.Writer (class MonadTell, class MonadWriter, listen, pass, tell)
-import Control.MonadPlus (class Alt, class Alternative, class MonadPlus, class MonadZero, class Plus, alt, empty)
+import Control.MonadPlus (class Alt, class Alternative, class MonadPlus, class Plus, alt, empty)
 import Control.Parallel (class Parallel, parallel, sequential)
 import Effect.Aff (Aff)
 import Effect.Aff as Aff
@@ -21,7 +21,7 @@ import Effect.Class (class MonadEffect, liftEffect)
 -- |
 -- | This monad transformer extends the base monad with a mutable registry for tracking resource cleanup actions.
 -- | At the end of evaluation all remaining cleanup actions are executed.
-newtype ResourceT m a
+newtype ResourceT (m :: Type -> Type) a
   = ResourceT (Registry -> m a)
 
 -- | The `Resource` monad is a synonym for `ResourceT Aff`.
@@ -112,8 +112,6 @@ instance plusResourceT :: (Monad m, Plus m) => Plus (ResourceT m) where
   empty = lift empty
 
 instance alternativeResourceT :: (Monad m, Alternative m) => Alternative (ResourceT m)
-
-instance monadZeroResourceT :: MonadZero m => MonadZero (ResourceT m)
 
 instance monadPlusResourceT :: MonadPlus m => MonadPlus (ResourceT m)
 
