@@ -1,0 +1,22 @@
+{
+  "name": "purescript-resourcet",
+  "description": "",
+  "main": "index.js",
+  "authors": [
+    "Robert Porter <robertp.dev@gmail.com>"
+  ],
+  "license": "BSD-3-Clause",
+  "homepage": "https://github.com/robertdp/purescript-resourcet",
+  "dependencies": {
+    "purescript-aff": "^6.0.0",
+    "purescript-effect": "^3.0.0",
+    "purescript-foldable-traversable": "^5.0.0",
+    "purescript-maybe": "^5.0.0",
+    "purescript-ordered-collections": "^2.0.0",
+    "purescript-parallel": "^5.0.0",
+    "purescript-refs": "^5.0.0",
+    "purescript-tailrec": "^5.0.0",
+    "purescript-transformers": "^5.0.0",
+    "purescript-tuples": "^6.0.0"
+  }
+}
