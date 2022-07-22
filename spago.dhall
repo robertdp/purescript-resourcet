@@ -1,15 +1,16 @@
-{-
-Welcome to a Spago project!
-You can edit this file as you like.
--}
 { name = "resourcet"
 , dependencies =
   [ "aff"
+  , "control"
   , "effect"
+  , "either"
+  , "exceptions"
   , "foldable-traversable"
+  , "lists"
   , "maybe"
   , "ordered-collections"
   , "parallel"
+  , "prelude"
   , "refs"
   , "tailrec"
   , "transformers"
