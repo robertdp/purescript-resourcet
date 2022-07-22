@@ -28,9 +28,9 @@ newtype Registry = Registry
 
 newtype ReleaseKey = ReleaseKey Int
 
-derive newtype Eq ReleaseKey
+derive newtype instance Eq ReleaseKey
 
-derive newtype Ord ReleaseKey
+derive newtype instance Ord ReleaseKey
 
 register :: Aff Unit -> Registry -> Effect ReleaseKey
 register runRelease (Registry ref) =
