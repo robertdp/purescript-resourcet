@@ -16,8 +16,7 @@ import Effect.Exception (throw)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 
-newtype Registry
-  = Registry
+newtype Registry = Registry
   ( Ref
       ( Maybe
           { nextKey :: Int
@@ -27,8 +26,7 @@ newtype Registry
       )
   )
 
-newtype ReleaseKey
-  = ReleaseKey Int
+newtype ReleaseKey = ReleaseKey Int
 
 derive newtype instance eqReleaseKey :: Eq ReleaseKey
 
@@ -38,42 +36,40 @@ register :: Aff Unit -> Registry -> Effect ReleaseKey
 register runRelease (Registry ref) =
   Ref.read ref
     >>= case _ of
-        Nothing -> throw "Attempting to acquire from closed registry"
-        Just { nextKey } -> do
-          Ref.modify_
-            ( map \state ->
-                state
-                  { nextKey = add one state.nextKey
-                  , releasers = Map.insert nextKey runRelease state.releasers
-                  }
-            )
-            ref
-          pure (ReleaseKey nextKey)
+      Just { nextKey } -> do
+        Ref.modify_
+          (map \state -> state { nextKey = add one state.nextKey, releasers = Map.insert nextKey runRelease state.releasers })
+          ref
+        pure (ReleaseKey nextKey)
+      Nothing -> throw "Attempting to acquire from closed registry"
 
 release :: ReleaseKey -> Registry -> Aff Unit
-release (ReleaseKey key) (Registry ref) =
-  (join <<< liftEffect) do
-    Ref.read ref
-      >>= case _ of
-          Nothing -> mempty
-          Just { releasers } -> case Map.lookup key releasers of
-            Nothing -> mempty
-            Just runRelease -> do
-              Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
-              pure runRelease
+release (ReleaseKey key) (Registry ref) = join <<< liftEffect $ do
+  Ref.read ref
+    >>= case _ of
+      Just { releasers } -> case Map.lookup key releasers of
+        Just runRelease -> do
+          Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
+          pure runRelease
+        Nothing -> mempty
+      Nothing -> mempty
 
 deregister :: ReleaseKey -> Registry -> Effect Unit
-deregister (ReleaseKey key) (Registry ref) = Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
+deregister (ReleaseKey key) (Registry ref) =
+  Ref.modify_
+    (map \s -> s { releasers = Map.delete key s.releasers })
+    ref
 
 has :: ReleaseKey -> Registry -> Effect Boolean
 has (ReleaseKey key) (Registry ref) =
-  Ref.read ref
-    >>= case _ of
-        Nothing -> pure false
-        Just state -> pure $ Map.member key state.releasers
+  Ref.read ref <#>
+    case _ of
+      Just state -> Map.member key state.releasers
+      Nothing -> false
 
 reference :: Registry -> Aff Unit
-reference (Registry ref) = liftEffect $ Ref.modify_ (map \s -> s { references = s.references + one }) ref
+reference (Registry ref) = liftEffect $
+  Ref.modify_ (map \s -> s { references = s.references + one }) ref
 
 cleanup :: Registry -> Aff Unit
 cleanup registry@(Registry ref) =
@@ -90,22 +86,22 @@ releaseAll (Registry ref) = reverse <$> tailRecM go Nil
   go errors =
     liftEffect extractMostRecent
       >>= case _ of
-          Nothing -> do
-            liftEffect $ Ref.write Nothing ref
-            pure $ Done errors
-          Just runRelease -> do
-            result <- Aff.attempt runRelease
-            pure $ Loop $ either (_ : errors) (const errors) result
+        Just runRelease -> do
+          result <- Aff.attempt runRelease
+          pure $ Loop $ either (_ : errors) (const errors) result
+        Nothing -> do
+          liftEffect $ Ref.write Nothing ref
+          pure $ Done errors
 
   extractMostRecent =
     Ref.read ref
       >>= case _ of
+        Just { releasers } -> case Map.findMax releasers of
+          Just { key, value } -> do
+            Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
+            pure (Just value)
           Nothing -> pure Nothing
-          Just { releasers } -> case Map.findMax releasers of
-            Nothing -> pure Nothing
-            Just { key, value } -> do
-              Ref.modify_ (map \s -> s { releasers = Map.delete key s.releasers }) ref
-              pure (Just value)
+        Nothing -> pure Nothing
 
 createEmpty :: Effect Registry
 createEmpty = Registry <$> Ref.new initialState

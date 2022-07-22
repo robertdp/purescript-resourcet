@@ -1,6 +1,7 @@
 module Test.Main where
 
 import Prelude
+
 import Control.Monad.Resource (class MonadResource, ReleaseKey)
 import Control.Monad.Resource as Resource
 import Data.Array as Array
@@ -85,14 +86,12 @@ main =
             fork2 <- makeResource
             Resource.runResource do
               _ <- resource.register One
-              _ <-
-                Resource.fork do
-                  liftAff $ delay $ Milliseconds 200.0
-                  fork1.register Two
-              _ <-
-                Resource.fork do
-                  _ <- fork2.register Three
-                  liftAff $ delay $ Milliseconds 500.0
+              _ <- Resource.fork do
+                liftAff $ delay $ Milliseconds 200.0
+                fork1.register Two
+              _ <- Resource.fork do
+                _ <- fork2.register Three
+                liftAff $ delay $ Milliseconds 500.0
               liftAff do
                 resource.expect.pending [ Tuple 0 One ]
                 resource.expect.released []
@@ -122,40 +121,37 @@ main =
             fork2.expect.released [ Three ]
           it "performs async cleanup when an error occurs" do
             finishedRelease <- liftEffect $ Ref.new false
-            (liftEffect <<< launchAff_ <<< attempt <<< Resource.runResource) do
-              _ <-
-                Resource.register do
-                  delay $ Milliseconds 50.0
-                  liftEffect $ Ref.write true finishedRelease
-              throwError (error "failing") $> unit
+            _ <- forkAff <<< attempt <<< Resource.runResource $ do
+              _ <- Resource.register do
+                delay $ Milliseconds 50.0
+                liftEffect $ Ref.write true finishedRelease
+              throwError (error "failing")
             delay $ Milliseconds 70.0
             wasSuccessful <- liftEffect $ Ref.read finishedRelease
             wasSuccessful `shouldEqual` true
           it "performs async cleanup when the fiber is killed" do
             finishedRelease <- liftEffect $ Ref.new false
-            fiber <-
-              (forkAff <<< Resource.runResource) do
-                _ <-
-                  Resource.register do
-                    delay $ Milliseconds 50.0
-                    liftEffect $ Ref.write true finishedRelease
-                pure unit
+            fiber <- forkAff <<< Resource.runResource $ do
+              _ <- Resource.register do
+                delay $ Milliseconds 50.0
+                liftEffect $ Ref.write true finishedRelease
+              pure unit
             delay $ Milliseconds 10.0
             killFiber (error "killing") fiber
             delay $ Milliseconds 60.0
             wasSuccessful <- liftEffect $ Ref.read finishedRelease
             wasSuccessful `shouldEqual` true
 
-makeResource ::
-  forall m.
-  MonadResource m =>
-  Aff
-    { expect ::
-        { pending :: Array (Tuple Int Token) -> Aff Unit
-        , released :: Array Token -> Aff Unit
-        }
-    , register :: Token -> m ReleaseKey
-    }
+makeResource
+  :: forall m
+   . MonadResource m
+  => Aff
+       { expect ::
+           { pending :: Array (Tuple Int Token) -> Aff Unit
+           , released :: Array Token -> Aff Unit
+           }
+       , register :: Token -> m ReleaseKey
+       }
 makeResource =
   liftEffect do
     nextId <- Ref.new 0
@@ -165,7 +161,7 @@ makeResource =
       register token = do
         id <- liftEffect $ Ref.modify' (\s -> { state: s + 1, value: s }) nextId
         liftEffect $ Ref.modify_ (Map.insert id token) pending
-        (Resource.register <<< liftEffect) do
+        Resource.register <<< liftEffect $ do
           Ref.modify_ (Map.delete id) pending
           Ref.modify_ (flip Array.snoc token) released
 
